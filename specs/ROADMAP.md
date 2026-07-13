@@ -23,7 +23,7 @@
 | CP-001 | [Foundation: config, schemas, deps, Makefile](CP-001-foundation.md) | 0 | — | ✅ done |
 | CP-002 | [Inference client wrappers](CP-002-inference-clients.md) | 0 | CP-001 | ✅ done |
 | CP-003 | [Brand Analyst agent (Stepfun VLM)](CP-003-brand-analyst.md) | 1 | CP-001, CP-002 | ✅ done |
-| CP-004 | [Art Director agent (local Nemotron)](CP-004-art-director.md) | 1 | CP-001, CP-002, CP-003 | ⬜ ready |
+| CP-004 | [Art Director agent (local Nemotron)](CP-004-art-director.md) | 1 | CP-001, CP-002, CP-003 | ✅ done |
 | CP-005 | [Generator agent (ComfyUI FLUX+PuLID)](CP-005-generator.md) | 1 | CP-001, CP-002 | ⬜ ready |
 | CP-006 | [Critic agent (Stepfun VLM)](CP-006-critic.md) | 1 | CP-001, CP-002, CP-003 | ⬜ ready |
 | CP-007 | [Model Orchestrator (GPU VRAM scheduler)](CP-007-model-orchestrator.md) | 1 | CP-001, CP-002 | ⬜ ready |

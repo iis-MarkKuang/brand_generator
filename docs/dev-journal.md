@@ -126,3 +126,28 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   `typography_class=sans`, 8 visual keywords; written to
   `runs/20260713-035802-82447/brand_dna.json`. ~25 s end-to-end.
 - CP-003 acceptance: all 6 criteria green.
+
+## Day 2 (cont.) — CP-004 Art Director agent
+- `src/agents/art_director.py`: `plan_assets(brand_dna, asset_types, *, run_dir,
+  base_seed, settings, client, cache_dir) -> AssetManifest` and
+  `rewrite_prompt(asset_spec, critic_feedback, ...) -> AssetSpec`; plus
+  `DIRECTOR_TOOLS` schemas (analyze_brand/generate_asset/critic_asset/request_vram)
+  for the CP-008 tool-calling loop. System prompt in `prompts/director.md` enforcing
+  cross-asset consistency, ≥2 palette hex tokens per flux_prompt, negative_prompt on
+  every asset, size ≤1344, `uses_pulid` only for mascot/identity.
+- Runs on the local Ollama reasoning model with `think=False` (workshop quirk).
+  Deterministic seeds per `(base_seed, brand_dna_hash, asset_id)` for reproducible
+  renders. Planning cached per `(brand_dna_hash, asset_types)` (T9); id/seed enforced
+  by the runtime (model told not to emit them). `plan_assets` re-stamps `run_id` from
+  the cache so a cached plan serves any new run.
+- **Unit tests** (`tests/test_art_director.py`, mocked Ollama): valid plan, reproducible
+  seeds (two model-path calls → identical seeds), repair path, cache-hit (Ollama not
+  called), rewrite_prompt (feedback sent to model + incorporated). 32 tests pass;
+  ruff + mypy (15 files) green.
+- **Live smoke** (`tools/smoke_art_director.py`) used `qwen3.6:35b` as the reasoning
+  model (nano still pulling — flaky registry parts, auto-retrying) per the agreed
+  stand-in: produced a coherent 5-asset kit (logo/hero_banner/social_square/
+  product_mockup/business_card) reusing the Nova Lin palette hex tokens across all
+  assets, deterministic seeds, written to `runs/20260713-040820-00855/asset_manifest.json`,
+  ~26 s. Will re-run on `nemotron-3-nano:30b` once the pull completes.
+- CP-004 acceptance: all 5 criteria green.

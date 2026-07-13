@@ -1,6 +1,6 @@
 # CP-004 — Art Director agent (local Nemotron)
 
-> Status: ready
+> Status: done
 > Depends on: CP-001, CP-002, CP-003
 > Phase: 1 Core agents
 
