@@ -488,3 +488,41 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   Tsinghua mirror for reachability from restricted networks.
 - **Test count:** 84 tests total (77 unit + 7 golden), all green.
 - CP-015 acceptance: all green.
+
+## CP-016 — Documentation, deployment guide, demo script (2026-07-13)
+
+Final delivery packet. All hackathon submission deliverables produced:
+
+- **`docs/PROJECT.md`** — submission doc, 1074 words (≥600 target), covering the 5
+  required topics: project characteristics, core highlights, detailed technical
+  implementation, architectural design, and optimization plans. Technically deep, not
+  marketing fluff.
+- **`docs/deployment.md`** — reproducible local bring-up on the DGX Spark from a clean
+  clone + `.env.example`: prerequisites (Python/uv, Node, Docker+CDI), deps, start the
+  GB10-CUDA Ollama + ComfyUI FLUX-dev fp8 services, start StyleForge, optional
+  NemoClaw sandbox + Telegram, run the demo, and the full 7-lever model-optimization
+  section (local-compute emphasis).
+- **`docs/tech-stack.md`** — explicit per-component table: 8 NVIDIA SDKs/models
+  (DGX Spark/GB10, Nemotron, ComfyUI/FLUX+PuLID, NemoClaw/OpenShell, NIM cloud, NeMo,
+  NIM containers, NVIDIA CDI) + 2 Stepfun models (`step-3.7-flash`, `step-2-mini`),
+  each with role; plus the agent platform/app stack and the local-vs-cloud split
+  rationale.
+- **`docs/demo-script.md`** — 11-shot demo video script tying each shot to a rubric
+  criterion (problem → stack → start → DNA → manifest → VRAM-swap → critic loop →
+  final kit → chat+sandbox → completeness → closing), with filmer notes.
+- **`README.md`** polished — quick start (full bring-up commands), architecture
+  diagram, tech stack, status/roadmap table (all 16 CPs ✅), docs index, license link.
+- **`LICENSE`** — Apache 2.0 (open-source submission readiness).
+- **`.gitignore`** — ignore coverage artifacts (`.coverage`, `coverage_html/`); untracked
+  the stray `.coverage` blob from CP-015.
+
+Verification: `wc -w docs/PROJECT.md` = 1074; `make check-secrets` passes across all docs
++ README; all acceptance items green.
+
+---
+
+### Roadmap final status
+
+All 16 change packets (CP-001 … CP-016) are ✅ done. 84 tests (77 unit + 7 golden),
+87% coverage, ruff + mypy clean, CI workflow green, secrets-clean. The "Ten-Day Talk"
+journey is recorded in this file.

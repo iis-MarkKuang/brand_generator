@@ -24,6 +24,13 @@ ENV/
 .mypy_cache/
 .ruff_cache/
 
+# === Test coverage artifacts (CP-015) ===
+.coverage
+.coverage.*
+coverage_html/
+htmlcov/
+coverage.xml
+
 # === Node / frontend ===
 node_modules/
 dist/
