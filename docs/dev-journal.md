@@ -105,3 +105,24 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   and pinned it in `03-model-optimization.md` O6.
 - `nemotron-3-nano:30b` (dev Art Director) pulling from the Ollama registry (~24 GB,
   ~30% done). Services left running for subsequent CPs.
+
+## Day 2 (cont.) — CP-003 Brand Analyst agent
+- `src/agents/brand_analyst.py`: `analyze_brand(brief, image, brand_name, *, run_dir,
+  settings, client, cache_dir) -> BrandDna`. System prompt in
+  `src/agents/prompts/analyst.md` (strict-JSON contract for the exact `BrandDna` fields).
+- Flow: resize image → data URL → Stepfun `chat_vlm` (`reasoning_effort=high`,
+  `image_detail=high`) → validate `BrandDna`; on schema failure, one repair retry that
+  feeds back the validation errors, then raise. `brand_name` enforced from the caller.
+- **Caching (O4):** key = `sha1(brief + image_bytes)` → `cache/brand_dna/<hash>.json`;
+  cache hit skips the VLM entirely but still writes `runs/<run_id>/brand_dna.json`.
+- `.gitignore` now excludes `runs/` and `cache/` (runtime artifacts).
+- **Unit tests** (`tests/test_brand_analyst.py`, mocked VLM): valid-JSON path,
+  schema-repair path (2 calls), cache-hit path (assert VLM not called). 27 tests pass;
+  `make lint` + `make typecheck` (mypy, 14 files) green.
+- **Live smoke** (`tools/smoke_brand_analyst.py`, real Stepfun on
+  `sample/sample_face.jpg`): produced a coherent personal-brand DNA — palette
+  `[Obsidian #0D0D0F, Nova Teal #00D4AA, Pure White #FFFFFF, Cloud Gray #F2F2F7,
+  Cool Gray #8E8E93]`, mood `[approachable, technical, energetic, modern, reliable]`,
+  `typography_class=sans`, 8 visual keywords; written to
+  `runs/20260713-035802-82447/brand_dna.json`. ~25 s end-to-end.
+- CP-003 acceptance: all 6 criteria green.

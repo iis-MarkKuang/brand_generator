@@ -47,6 +47,8 @@ ollama-data/
 
 # === Generated outputs ===
 outputs/
+runs/
+cache/
 openclaw-home/
 *.pid
 comfyui.log
