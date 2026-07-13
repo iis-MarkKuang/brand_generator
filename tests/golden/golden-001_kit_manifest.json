@@ -1,0 +1,45 @@
+{
+  "run_id": "golden-001",
+  "brand_name": "Ember & Oat",
+  "status": "partial",
+  "brand_dna_ref": "brand_dna.json",
+  "brand_guide": "brand_kit/brand_guide.md",
+  "assets": [
+    {
+      "id": "logo",
+      "type": "logo",
+      "path": "",
+      "status": "failed",
+      "final_score": 62,
+      "error": "Fix garbled curved text: 'BROASTED'→'ROASTED', 'ROFFEE'→'COFFEE', 'COFECALS'→remove. Add missing #C65D3B Ember accent to steam lines. Add separate Cormorant Garamond wordmark below emblem per asset spec. Ensure Warm Stone #A69B90 appears in details."
+    },
+    {
+      "id": "social_square",
+      "type": "social_square",
+      "path": "",
+      "status": "failed",
+      "final_score": 65,
+      "error": "Replace teal mug with Espresso #4A3728 or Charcoal #2D241B ceramic to match warm earthy palette. Fix corrupted tagline text to read 'Craft First' legibly in Cormorant Garamond at sufficient size. Ensure no cool blue tones leak into props."
+    }
+  ],
+  "palette": [
+    "#4A3728",
+    "#C65D3B",
+    "#F2E8D5",
+    "#2D241B",
+    "#A69B90"
+  ],
+  "generated_at": "2026-07-13T09:11:02.066676Z",
+  "total_latency_s": 350,
+  "optimization_stats": {
+    "vram_swaps": 7,
+    "brand_dna_cache_hit": false,
+    "critic_effort_low_count": 2,
+    "critic_effort_medium_count": 2,
+    "critic_effort_high_count": 0,
+    "total_vlm_calls": 5,
+    "total_renders": 4,
+    "routing_local_count": 3,
+    "routing_nim_count": 0
+  }
+}

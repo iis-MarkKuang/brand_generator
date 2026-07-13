@@ -27,7 +27,7 @@
 | CP-005 | [Generator agent (ComfyUI FLUX+PuLID)](CP-005-generator.md) | 1 | CP-001, CP-002 | ✅ done |
 | CP-006 | [Critic agent (Stepfun VLM)](CP-006-critic.md) | 1 | CP-001, CP-002, CP-003 | ✅ done |
 | CP-007 | [Model Orchestrator (GPU VRAM scheduler)](CP-007-model-orchestrator.md) | 1 | CP-001, CP-002 | ✅ done |
-| CP-008 | [Master orchestrator loop + Assembler](CP-008-orchestrator-loop.md) | 2 | CP-003, CP-004, CP-005, CP-006, CP-007 | ⬜ ready |
+| CP-008 | [Master orchestrator loop + Assembler](CP-008-orchestrator-loop.md) | 2 | CP-003, CP-004, CP-005, CP-006, CP-007 | ✅ done |
 | CP-009 | [OpenClaw SKILL.md wiring](CP-009-openclaw-skill.md) | 2 | CP-010 | ⬜ ready |
 | CP-010 | [FastAPI backend service](CP-010-fastapi-backend.md) | 3 | CP-008 | ⬜ ready |
 | CP-011 | [Brand Kit Gallery (React+Vite)](CP-011-frontend-gallery.md) | 3 | CP-010 | ⬜ ready |

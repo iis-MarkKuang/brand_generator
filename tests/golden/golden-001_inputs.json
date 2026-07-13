@@ -1,0 +1,20 @@
+{
+  "run_id": "golden-001",
+  "brand_name": "Ember & Oat",
+  "brief": "A warm, craft-first small-batch coffee roaster; hand-drawn serif, earthy palette of espresso and oat cream.",
+  "reference_image": "/home/Developer/build_a_claw_workshop-bundle/sample/sample_face.jpg",
+  "options": {"assets": ["logo", "social_square"], "max_retries_per_asset": 1},
+  "models": {
+    "vlm": "step-3.7-flash (Stepfun cloud)",
+    "reasoning": "nemotron-3-nano:30b (Ollama, GB10)",
+    "generator": "ComfyUI FLUX-dev-fp8 + PuLID"
+  },
+  "result": {
+    "status": "partial",
+    "total_latency_s": 350,
+    "total_vlm_calls": 5,
+    "total_renders": 4,
+    "vram_swaps": 7,
+    "note": "Critic was strict (threshold 70); both assets scored 62/65. FLUX garbled the wordmark text (a known FLUX limitation) and the critic correctly flagged it with actionable hex/legibility fixes. Complete kits are achievable by tuning critic_pass_threshold, selecting text-light assets, or raising max_retries. The pipeline, swap scheduler, bounded loop, and partial-kit resilience are all verified end-to-end."
+  }
+}

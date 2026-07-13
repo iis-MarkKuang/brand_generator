@@ -1,6 +1,6 @@
 # CP-008 — Master orchestrator loop + Assembler
 
-> Status: ready
+> Status: done
 > Depends on: CP-003, CP-004, CP-005, CP-006, CP-007
 > Phase: 2 Orchestration
 

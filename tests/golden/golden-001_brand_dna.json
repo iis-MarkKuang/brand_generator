@@ -1,0 +1,65 @@
+{
+  "brand_name": "Ember & Oat",
+  "palette": [
+    {
+      "name": "Espresso",
+      "hex": "#4A3728",
+      "rank": "primary"
+    },
+    {
+      "name": "Ember",
+      "hex": "#C65D3B",
+      "rank": "accent"
+    },
+    {
+      "name": "Oat Cream",
+      "hex": "#F2E8D5",
+      "rank": "accent"
+    },
+    {
+      "name": "Charcoal",
+      "hex": "#2D241B",
+      "rank": "neutral"
+    },
+    {
+      "name": "Warm Stone",
+      "hex": "#A69B90",
+      "rank": "neutral"
+    }
+  ],
+  "mood": [
+    "Warm",
+    "Artisanal",
+    "Earthy",
+    "Intimate",
+    "Robust"
+  ],
+  "typography_class": "serif",
+  "typography_pairs": {
+    "headline": "Cormorant Garamond",
+    "body": "Source Serif Pro"
+  },
+  "visual_keywords": [
+    "roasted",
+    "ceramic",
+    "linen",
+    "steam",
+    "hands",
+    "hearth",
+    "batch",
+    "grain"
+  ],
+  "dos": [
+    "Use textured matte paper stocks",
+    "Feature close-up artisan process shots",
+    "Maintain generous negative space",
+    "Apply subtle film grain overlays"
+  ],
+  "donts": [
+    "Avoid pure white #FFFFFF backgrounds",
+    "Skip cool blue or neon tones",
+    "Don't use generic stock coffee imagery",
+    "Avoid glossy or highly reflective finishes"
+  ],
+  "personality": "Ember & Oat is a warm, craft-first small-batch coffee roaster that embodies the intimacy of hand-roasted beans and the comfort of the morning ritual. With a hand-drawn serif aesthetic and an earthy palette rooted in espresso and oat cream, the brand feels approachably artisanal—honoring traditional methods while maintaining a clean, modern sensibility. It celebrates the human element behind the craft, from the roaster's hands to the ceramic mug, creating a sensory, grounded experience that feels both authentic and refined."
+}

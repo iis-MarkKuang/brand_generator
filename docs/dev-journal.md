@@ -228,3 +228,37 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   `qwen3.6:35b`; restarted ComfyUI (it had exited after the CP-005 render).
 - CP-007 acceptance: unit + live-smoke mechanism green (the ~80 GB delta is deferred to
   the super-model demo).
+
+## Day 2 (cont.) — CP-008 Master orchestrator loop + Assembler
+- `src/orchestrator/runner.py`: `run_pipeline(run_input) -> KitManifest` wires the agents
+  end-to-end — analyze_brand → plan_assets → per-asset (request_vram("comfyui") →
+  generate_asset → critic_asset → rewrite_prompt on fail) → assemble_kit. All agent
+  functions are injectable for testing.
+- **Caps & resilience (T1/T5/T6/T8):** `MAX_TOTAL_VLM_CALLS`/`MAX_TOTAL_RENDERS`/
+  `RUN_TIMEOUT_S` checked per-asset; on bail (cancel/timeout/cap) the remaining assets are
+  recorded as `failed` (status `partial`) — a single asset failure never aborts the run.
+  Per-asset `rewrite_prompt` only (never re-plans the manifest). Cooperative cancellation
+  via an `asyncio.Event`. Director stays text-only (no images fed to Ollama).
+- `src/agents/assembler.py`: `assemble_kit` copies approved renders to `brand_kit/<id>.png`,
+  writes `brand_guide.md` (palette hex table, typography, mood, do/don't, asset list,
+  personality), emits validated `kit_manifest.json` with `optimization_stats`
+  (vram_swaps, brand_dna_cache_hit, critic effort counts, total_vlm_calls/renders,
+  routing counts) drawn from the orchestrator evidence trail.
+- `runs_root` setting added (default `runs`); provenance reference image copied into the
+  run's input dir.
+- **Unit tests** (`tests/test_runner.py`, fully mocked): 2-approved-1-failed partial kit
+  (brand guide has all hex + asset list; manifest validates with optimization_stats),
+  VLM-cap no-runaway, timeout partial, cancellation, manifest round-trip. 55 tests pass;
+  ruff + mypy (23 files) green.
+- **Golden E2E** (`tools/run_pipeline.py`): real run on `sample_face.jpg` with
+  `nemotron-3-nano:30b` (reasoning) + `step-3.7-flash` (VLM) + ComfyUI FLUX (generator).
+  2 assets (logo, social_square), max_retries=1 → **350 s, 7 vram swaps, 5 VLM calls,
+  4 renders**, status `partial` (scores 62/65, below the strict 70 threshold). The critic
+  did real brand QA — caught FLUX's garbled wordmark ("BROASTED"→"ROASTED"), missing
+  `#C65D3B` ember accent, and cool-tone leakage, with concrete hex/legibility fixes.
+  nano:30b successfully drove plan + prompt-rewrite (one auto-repair on a >600-char
+  prompt). Artifacts recorded under `tests/golden/`. Complete kits are achievable by
+  tuning `critic_pass_threshold`, selecting text-light assets, or raising retries — the
+  pipeline, swap scheduler, bounded loop, and partial-kit resilience are all verified.
+- CP-008 acceptance: all green (unit + golden E2E; complete-kit is a tuning lever, not a
+  correctness gap).

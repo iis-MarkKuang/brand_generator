@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     # --- App ---
     app_port: int = 8000
     frontend_port: int = 5173
+    runs_root: str = "runs"
     log_level: str = "INFO"
 
     # --- Security & token budget (07-security-and-tokens.md §D) ---
