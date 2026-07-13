@@ -31,7 +31,7 @@
 | CP-009 | [OpenClaw SKILL.md wiring](CP-009-openclaw-skill.md) | 2 | CP-010 | ✅ done |
 | CP-010 | [FastAPI backend service](CP-010-fastapi-backend.md) | 3 | CP-008 | ✅ done |
 | CP-011 | [Brand Kit Gallery (React+Vite)](CP-011-frontend-gallery.md) | 3 | CP-010 | ✅ done |
-| CP-012 | [NemoClaw sandbox + Telegram always-on](CP-012-nemoclaw-telegram.md) | 4 | CP-009 | ⬜ ready |
+| CP-012 | [NemoClaw sandbox + Telegram always-on](CP-012-nemoclaw-telegram.md) | 4 | CP-009 | ✅ done (sandbox + skill; Telegram regionally blocked) |
 | CP-013 | [NVIDIA NIM cloud model routing](CP-013-nim-routing.md) | 4 | CP-002, CP-004, CP-007 | ✅ done |
 | CP-014 | [NeMo LoRA fine-tuning optimization leg](CP-014-nemo-lora.md) | 4 | CP-005 | ⬜ ready |
 | CP-015 | [Tests + acceptance harness + golden run](CP-015-tests-golden.md) | 5 | CP-008 | ⬜ ready |

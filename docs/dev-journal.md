@@ -371,3 +371,58 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   no-failover, cloud-first, reasoning_content extraction, empty-content raises,
   orchestrator_log `backend` field.
 - CP-013 acceptance: all green (unit + live smoke).
+
+## CP-012 — NemoClaw sandbox + Telegram (2026-07-13)
+
+- **Proxy unblock:** set up Clash/mihomo (`hysteria2`, mixed-port 7890) with the user's
+  config + geoip/geosite DBs. Verified `api.telegram.org`, `github.com`,
+  `registry-1.docker.io` all reachable through `127.0.0.1:7890`. Configured the Docker
+  daemon to use the proxy for image pulls (`/etc/systemd/system/docker.service.d/http-proxy.conf`
+  + `daemon-reload`/`restart docker`, user ran the sudo block). `docker pull hello-world`
+  succeeded through the proxy.
+- **NemoClaw CLI:** built from the offline mirror (`npm install --ignore-scripts` for
+  devDeps → `npm run build:cli`); wrapper scripts at `~/.local/bin/{nemoclaw,nemohermes,
+  nemo-deepagents}` pin the workshop Node 22. OpenShell v0.0.72 aarch64 binaries extracted
+  to `~/.local/bin`.
+- **Sandbox bring-up:** `nemoclaw onboard --resume --non-interactive --yes --no-gpu --agent
+  openclaw --no-ollama-autostart` with `NEMOCLAW_PROVIDER=ollama` (the provider id is
+  `ollama`, not `ollama-local`), `NEMOCLAW_MODEL=nemotron-3-nano:30b`,
+  `NEMOCLAW_SANDBOX_NAME=styleforge`. Preflight passed (GB10 122572 MB detected, sandbox GPU
+  disabled). The sandbox image build (BuildKit, ~7 min) pulled `node:22-trixie-slim` +
+  `ghcr.io/nvidia/nemoclaw/sandbox-base` through the proxy and verified supply-chain
+  integrity pins (OpenClaw 2026.6.10, mcporter 0.7.3, codex-acp 0.11.1). Result: sandbox
+  `styleforge` Phase Ready, OpenClaw v2026.6.10, inference healthy on `inference.local`
+  + `127.0.0.1:11434` + auth proxy `:11435`. Dashboard `http://127.0.0.1:18789/`. Policy v3
+  active (balanced tier: npm, pypi, huggingface, brew, local-inference, openclaw-pricing).
+- **Egress to host orchestrator:** the skill helper inside the sandbox reaches the host
+  FastAPI backend at `http://host.openshell.internal:8000` (auto-detected via `/.dockerenv` in
+  `run_helper.sh`). The built-in `local-inference` preset already allowlists
+  `host.openshell.internal:8000` with the SSRF-guard `allowed_ips`. First attempt used
+  `host.docker.internal` in a custom preset — denied because it lacked `allowed_ips` (SSRF
+  guard rejects private host-gateway IPs) and used the wrong alias; switched to
+  `host.openshell.internal` and it works. `policies/styleforge-orchestrator.yaml` kept as
+  documentation (redundant with `local-inference`). Egress policy changes required
+  `nemoclaw styleforge rebuild --yes` to take effect in the L7 proxy.
+- **Skill install:** `nemoclaw styleforge skill install skills/styleforge` → 4 files uploaded,
+  SKILL.md validated. Skill survives rebuilds (lives at `/sandbox/.openclaw/skills/styleforge/`).
+- **E2E acceptance (sandbox → host backend → pipeline):** ran the skill helper from inside
+  the sandbox with the coffee brief + `sample_face.jpg` copied to the sandbox inbound. The
+  helper reached the host backend (health `ollama/comfyui/stepfun` all true), POSTed
+  `/api/runs` (run `20260713-133254-74725`), and the full pipeline ran end-to-end (reasoning
+  → generating → reasoning retry → generating → assembled, ~318 s). Published
+  `brand_guide.md` to `/sandbox/.openclaw/workspace/outputs/styleforge/...`. Result
+  `status=partial, approved=0, failed=1` (logo failed the strict critic threshold 70 —
+  consistent with the golden-run FLUX-text limitation; pipeline + swap scheduler + bounded
+  loop + partial-kit resilience all verified from inside the governed sandbox). Palette
+  extracted: `#4A3728 #C65D3B #F2E8D5 #2D241B #A69B90`.
+- **Telegram — regionally blocked:** bot token verified valid via the Clash proxy
+  (`getMe` → `styleforge322_mark_bot`, ok:true); the `telegram` egress preset is applied.
+  However the OpenShell gateway L7 proxy and the nemoclaw reachability check use Node's
+  global `fetch` (direct connect, does not honor `HTTP_PROXY`/`HTTPS_PROXY`), so they cannot
+  reach `api.telegram.org` through the app-level proxy. `channels add telegram` reports
+  "api.telegram.org is unreachable" and skips enrollment. Fixing this requires a transparent
+  proxy (mihomo TUN mode) — intentionally NOT enabled to avoid disrupting the operational
+  demo network. Telegram is documented as configured-but-regionally-blocked; it would work
+  in a non-restricted network.
+- **CP-012 status:** sandbox + StyleForge skill DONE (E2E verified); Telegram configured but
+  regionally blocked. The web gallery + OpenClaw TUI remain the primary demo surfaces.

@@ -21,7 +21,18 @@ if [ -z "${OPENCLAW_HOME:-}" ]; then
     export OPENCLAW_HOME
 fi
 
-# The orchestrator API base (no secrets here — just localhost).
-export STYLEFORGE_API="${STYLEFORGE_API:-http://127.0.0.1:8000}"
+# The orchestrator API base (no secrets here — just the host orchestrator).
+# Auto-detect: inside the NemoClaw sandbox (/.dockerenv present) the backend
+# runs on the HOST, so reach it via host.openshell.internal (OpenShell's host
+# alias; the local-inference preset already allowlists host.openshell.internal:8000
+# with the SSRF-guard allowed_ips). On the host itself 127.0.0.1 is correct.
+# An explicit STYLEFORGE_API always wins.
+if [ -z "${STYLEFORGE_API:-}" ]; then
+    if [ -f /.dockerenv ]; then
+        export STYLEFORGE_API="http://host.openshell.internal:8000"
+    else
+        export STYLEFORGE_API="http://127.0.0.1:8000"
+    fi
+fi
 
 exec python3 "$SCRIPT_DIR/styleforge_helper.py" "$@"

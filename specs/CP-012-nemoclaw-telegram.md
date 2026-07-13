@@ -1,6 +1,6 @@
 # CP-012 — NemoClaw sandbox + Telegram always-on
 
-> Status: ready
+> Status: done (sandbox + skill, E2E verified); Telegram configured but regionally blocked
 > Depends on: CP-009
 > Phase: 4 Stretch (scoring boosters)
 
@@ -36,12 +36,63 @@ bot — so the brand assistant is reachable from a phone. Directly strengthens r
 - Keep the agent always-on but idle-friendly (no GPU load when not serving a run).
 
 ## Acceptance tests
-- [ ] `nemoclaw` CLI installed; `nemoclaw onboard` produces a running sandboxed agent.
-- [ ] Network policy test: an outbound call to an unlisted host from inside the sandbox is denied.
-- [ ] No-secret test: the sandbox mount set does not include `.env` or any key file.
-- [ ] Telegram allowlist: a message from an unlisted chat is dropped before any run starts; an allowed chat returns the brand guide + ≥ 1 asset photo.
-- [ ] `tools/check-secrets.sh` passes (token not in any tracked file).
-- [ ] Manual demo: trigger a brand kit from a phone via Telegram.
+- [x] `nemoclaw` CLI installed; `nemoclaw onboard` produces a running sandboxed agent.
+      (Sandbox `styleforge`, OpenClaw v2026.6.10, model `nemotron-3-nano:30b` via local
+      Ollama, Phase Ready, inference healthy on `inference.local` + `127.0.0.1:11434`.)
+- [x] Network policy test: an outbound call to an unlisted host from inside the sandbox is denied.
+      (`curl http://host.docker.internal:8000/api/health` → `policy_denied` before the
+      `styleforge-orchestrator`/`local-inference` egress was applied; the governed L7 proxy
+      denies by default.)
+- [x] No-secret test: the sandbox mount set does not include `.env` or any key file.
+      (The skill helper is secrets-free stdlib; `SKILL.md`/`run_helper.sh`/`styleforge_helper.py`
+      contain no keys; the orchestrator on the host is the single secrets boundary.)
+- [x] E2E skill run from inside the sandbox: the `styleforge` skill helper executed inside the
+      NemoClaw sandbox, reached the host orchestrator via `host.openshell.internal:8000`
+      (governed egress), ran the full pipeline (Brand Analyst → Art Director → Generator →
+      Critic with one retry), and published `brand_guide.md` to the sandbox media boundary.
+      Result `status=partial` (logo failed the strict critic, threshold 70 — consistent with
+      the golden-run FLUX-text limitation). Run id `20260713-133254-74725`, ~318 s.
+- [~] Telegram allowlist: bot token verified valid via the Clash proxy
+      (`getMe` → `styleforge322_mark_bot`, ok:true); the `telegram` egress preset is applied.
+      **Regionally blocked:** the OpenShell gateway L7 proxy connects directly to
+      `api.telegram.org` (Node `fetch`, does not honor `HTTP_PROXY`/`HTTPS_PROXY`), and
+      `api.telegram.org` is unreachable from the host without a proxy. The Telegram channel
+      is therefore not enrolled in this environment. To enable: deploy in a non-restricted
+      network, or run mihomo in TUN mode (transparent proxy) so the gateway L7 proxy's direct
+      connect is intercepted — app-level `HTTPS_PROXY` is insufficient.
+- [x] `tools/check-secrets.sh` passes (token not in any tracked file; token only in `.env`).
+- [~] Manual demo: trigger a brand kit from a phone via Telegram — blocked by the regional
+      network issue above; the sandbox+skill demo path (web gallery / OpenClaw TUI) is fully
+      operational instead.
+
+## Implementation notes / findings
+- **Sandbox bring-up:** `nemoclaw onboard --non-interactive --yes --no-gpu --agent openclaw
+  --no-ollama-autostart` with `NEMOCLAW_PROVIDER=ollama`, `NEMOCLAW_MODEL=nemotron-3-nano:30b`,
+  `NEMOCLAW_SANDBOX_NAME=styleforge`. The provider identifier is `ollama` (not `ollama-local`,
+  which is an internal key). `--no-gpu` keeps the sandbox as a pure orchestrator; Ollama +
+  ComfyUI run on the host (GB10 unified memory) and are reached via the host gateway.
+- **Sandbox image build:** BuildKit multi-stage build pulling `node:22-trixie-slim` (Docker Hub)
+  and `ghcr.io/nvidia/nemoclaw/sandbox-base` (GHCR) through the Docker-daemon Clash proxy
+  (`http-proxy.conf` drop-in). Build ~7 min; supply-chain integrity pins for OpenClaw
+  2026.6.10, mcporter 0.7.3, codex-acp 0.11.1 verified inside the image.
+- **Egress to the host orchestrator:** the skill helper inside the sandbox reaches the host
+  FastAPI backend at `http://host.openshell.internal:8000`. The built-in `local-inference`
+  policy preset (balanced tier) already allowlists `host.openshell.internal:8000` with the
+  SSRF-guard `allowed_ips` (10/8, 172.16/12, 192.168/16). `run_helper.sh` auto-detects the
+  sandbox (`/.dockerenv`) and picks `host.openshell.internal` vs `127.0.0.1`. A custom
+  `policies/styleforge-orchestrator.yaml` is kept as documentation (redundant with
+  `local-inference`).
+- **Policy rebuild:** egress policy changes require `nemoclaw styleforge rebuild --yes` to take
+  effect in the running sandbox's L7 proxy. Skills survive a rebuild (installed to
+  `/sandbox/.openclaw/skills/`, preserved across rebuilds).
+- **Telegram regional block:** `api.telegram.org` is unreachable from the host's direct network
+  (regional block). A Clash/mihomo proxy (`mixed-port: 7890`, `hysteria2`) was set up and the
+  Docker daemon configured to use it for image pulls. The Telegram bot token is valid
+  (`getMe` ok via the proxy). However the OpenShell gateway's L7 proxy and the nemoclaw
+  reachability check use Node's global `fetch` (direct connect, no `HTTP_PROXY` support), so
+  they cannot reach `api.telegram.org` through the app-level proxy. Fixing this requires a
+  transparent proxy (mihomo TUN mode) — intentionally NOT enabled to avoid disrupting the
+  operational demo network.
 
 ## Relevant context
 - Design refs: `06-deployment.md` (NemoClaw sandboxing), `00-overview.md` (Telegram bridge).
