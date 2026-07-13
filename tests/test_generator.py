@@ -93,6 +93,56 @@ def test_build_workflow_keeps_pulid() -> None:
     assert wf["11"]["inputs"]["steps"] == 18
 
 
+# ---- build_workflow (CP-014 LoRA) ---------------------------------------- #
+
+
+def test_build_workflow_no_lora_is_unchanged() -> None:
+    wf = build_workflow(_spec(uses_pulid=False), attempt=1, steps=24)
+    assert "100" not in wf  # no LoraLoader injected
+    assert wf["7"]["inputs"]["clip"] == ["1", 1]  # clip straight from checkpoint
+    assert wf["11"]["inputs"]["model"] == ["1", 0]
+
+
+def test_build_workflow_lora_inserts_loader_no_pulid() -> None:
+    wf = build_workflow(
+        _spec(uses_pulid=False),
+        attempt=1,
+        steps=24,
+        lora_adapter="brand_style_lora.safetensors",
+        lora_strength=0.85,
+    )
+    # LoraLoader injected between checkpoint and model/clip consumers
+    assert "100" in wf
+    assert wf["100"]["class_type"] == "LoraLoader"
+    assert wf["100"]["inputs"]["lora_name"] == "brand_style_lora.safetensors"
+    assert wf["100"]["inputs"]["strength_model"] == 0.85
+    assert wf["100"]["inputs"]["strength_clip"] == 0.85
+    assert wf["100"]["inputs"]["model"] == ["1", 0]
+    assert wf["100"]["inputs"]["clip"] == ["1", 1]
+    # KSampler + CLIPTextEncode rewired to the LoRA outputs
+    assert wf["11"]["inputs"]["model"] == ["100", 0]
+    assert wf["7"]["inputs"]["clip"] == ["100", 1]
+    assert wf["8"]["inputs"]["clip"] == ["100", 1]
+    # VAE still comes from the checkpoint (LoRA does not touch the VAE)
+    assert wf["12"]["inputs"]["vae"] == ["1", 2]
+
+
+def test_build_workflow_lora_with_pulid() -> None:
+    wf = build_workflow(
+        _spec(uses_pulid=True, pulid_ref="runs/r/input/ref.jpg"),
+        attempt=1,
+        steps=24,
+        lora_adapter="brand_style_lora.safetensors",
+    )
+    assert "100" in wf
+    # ApplyPulidFlux takes the LoRA-applied model; KSampler still takes PuLID output
+    assert wf["6"]["inputs"]["model"] == ["100", 0]
+    assert wf["11"]["inputs"]["model"] == ["6", 0]
+    # clip rewired to LoRA
+    assert wf["7"]["inputs"]["clip"] == ["100", 1]
+    assert wf["8"]["inputs"]["clip"] == ["100", 1]
+
+
 # ---- generate_asset (valid render) --------------------------------------- #
 
 

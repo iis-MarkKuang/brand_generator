@@ -38,6 +38,9 @@ _POSITIVE = "7"
 _NEGATIVE = "8"
 _LATENT = "10"
 _LOADIMAGE = "5"
+_CHECKPOINT = "1"
+_APPLY_PULID = "6"
+_LORALOADER = "100"  # injected node id for the CP-014 LoRA adapter
 _CFG = 1.0
 _GUIDANCE = 3.5
 _DEFAULT_STEPS = 24
@@ -56,8 +59,20 @@ def _is_cuda_dirty(msg: str) -> bool:
     return any(m.lower() in low for m in CUDA_DIRTY_MARKERS)
 
 
-def build_workflow(asset_spec: AssetSpec, attempt: int, steps: int) -> dict[str, Any]:
-    """Build a ComfyUI API-format graph for one asset, pruning PuLID when unused."""
+def build_workflow(
+    asset_spec: AssetSpec,
+    attempt: int,
+    steps: int,
+    *,
+    lora_adapter: str = "",
+    lora_strength: float = 1.0,
+) -> dict[str, Any]:
+    """Build a ComfyUI API-format graph for one asset, pruning PuLID when unused.
+
+    When ``lora_adapter`` (a ComfyUI lora filename) is set, a ``LoraLoader`` node is
+    injected between the checkpoint and the model/clip consumers (CP-014 LoRA
+    specialization). The non-LoRA path is unchanged when ``lora_adapter`` is empty.
+    """
     wf = json.loads(_WORKFLOW_PATH.read_text(encoding="utf-8"))
     wf = {k: {"class_type": v["class_type"], "inputs": dict(v["inputs"])} for k, v in wf.items()}
 
@@ -71,14 +86,40 @@ def build_workflow(asset_spec: AssetSpec, attempt: int, steps: int) -> dict[str,
     wf[_KSAMPLER]["inputs"]["steps"] = steps
     wf[_SAVEIMAGE]["inputs"]["filename_prefix"] = f"{asset_spec.id}__v{attempt}"
 
+    # CP-014: inject a LoraLoader between the checkpoint and the model/clip consumers.
+    # LoraLoader outputs [model=0, clip=1]; consumers that referenced ["1", 0]/["1", 1]
+    # are rewired to ["100", 0]/["100", 1]. The VAE (["1", 2]) is untouched by LoRA.
+    if lora_adapter:
+        wf[_LORALOADER] = {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "model": [_CHECKPOINT, 0],
+                "clip": [_CHECKPOINT, 1],
+                "lora_name": lora_adapter,
+                "strength_model": lora_strength,
+                "strength_clip": lora_strength,
+            },
+        }
+        model_src: list[str | int] = [_LORALOADER, 0]
+        clip_src: list[str | int] = [_LORALOADER, 1]
+        wf[_POSITIVE]["inputs"]["clip"] = clip_src
+        wf[_NEGATIVE]["inputs"]["clip"] = clip_src
+    else:
+        model_src = [_CHECKPOINT, 0]
+        # clip stays as ["1", 1] from the base workflow for the non-LoRA path
+
     if asset_spec.uses_pulid:
         if not asset_spec.pulid_reference:
             raise ComfyUIError("uses_pulid=true but pulid_reference is unset")
         wf[_LOADIMAGE]["inputs"]["image"] = asset_spec.pulid_reference
+        # ApplyPulidFlux takes the (possibly LoRA-applied) model; its model input is
+        # rewired from ["1", 0] to the LoRA model output when LoRA is active.
+        wf[_APPLY_PULID]["inputs"]["model"] = model_src
+        # KSampler model comes from ApplyPulidFlux (["6", 0]) — unchanged
     else:
         for nid in _PULID_NODES:
             wf.pop(nid, None)
-        wf[_KSAMPLER]["inputs"]["model"] = ["1", 0]  # raw CheckpointLoader model
+        wf[_KSAMPLER]["inputs"]["model"] = model_src  # raw or LoRA-applied checkpoint
     return wf
 
 
@@ -147,7 +188,13 @@ async def _render_once(
     cc = client or ComfyUIClient(settings)
     t0 = time.perf_counter()
     try:
-        wf = build_workflow(asset_spec, attempt, steps)
+        wf = build_workflow(
+            asset_spec,
+            attempt,
+            steps,
+            lora_adapter=settings.lora_adapter,
+            lora_strength=settings.lora_strength,
+        )
         pid = await cc.submit(wf)
         try:
             entry = await cc.wait(pid, timeout=max_wait_s)

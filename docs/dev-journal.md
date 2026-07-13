@@ -426,3 +426,44 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   in a non-restricted network.
 - **CP-012 status:** sandbox + StyleForge skill DONE (E2E verified); Telegram configured but
   regionally blocked. The web gallery + OpenClaw TUI remain the primary demo surfaces.
+
+## CP-014 — NeMo LoRA specialization (2026-07-13)
+
+- **Generator LoRA support (DONE, tested):** `build_workflow` now accepts
+  `lora_adapter` + `lora_strength` and injects a ComfyUI `LoraLoader` node (id
+  `"100"`) between the FLUX checkpoint and the model/clip consumers. The KSampler
+  model and CLIPTextEncode clip inputs are rewired to the LoRA outputs; the VAE
+  (`["1", 2]`) is untouched. Gated by `Settings.lora_adapter` (empty = the default
+  non-LoRA path, fully backward-compatible). Handles both the PuLID
+  (ApplyPulidFlux model → LoRA output) and non-PuLID (KSampler model → LoRA output)
+  branches. New settings `lora_adapter`/`lora_strength` in `config.py` + `.env.example`.
+  3 new unit tests in `tests/test_generator.py` (no-LoRA-unchanged, LoRA+no-PuLID,
+  LoRA+PuLID); 8/8 generator tests green.
+- **Training config + script (DONE):** `nemo/lora_config.yaml` (rank 16, alpha 16,
+  attention projections, 200 epochs, bf16, lr 1e-4, ComfyUI safetensors export) +
+  `nemo/flux_lora_train.py` (config-driven diffusers+peft+accelerate trainer;
+  validates dataset alignment, writes `training_manifest.json`, runs the loop when
+  heavy deps are present, returns a clear "deps not installed" message otherwise so
+  the orchestrator env stays light) + `nemo/README.md` (dataset strategy, NeMo vs
+  diffusers+peft tooling note, scaling roadmap) + sample `captions.txt`.
+- **Tooling note:** NeMo is the framework for LLM/speech/VLM specialization; FLUX is
+  a diffusion transformer, so its LoRA specialization uses diffusers+peft on top of
+  the NVIDIA FLUX-dev-fp8 base checkpoint (Blackwell FP8, the one ComfyUI loads).
+  NeMo's role is the scaling-plane (experiment/distributed management); the model +
+  adapter format stay diffusers/ComfyUI-compatible so inference is unchanged.
+- **NeMo install feasibility (assessed):** `uv pip install --dry-run nemo_toolkit`
+  resolved successfully on this aarch64 Spark through the Clash proxy + Tsinghua
+  mirror (nemo_toolkit + torch 2.13.0 + triton 3.7.1 + CUDA-13 wheels). So NeMo IS
+  installable here. The full install (several GB) + a FLUX LoRA training run are
+  time- and GPU-memory-boxed out for the hackathon window (GB10 ~120 GiB unified
+  memory shared with the live Ollama + ComfyUI demo), so the training leg ships as a
+  validated plan + Generator-side adapter loading. Recorded in
+  `docs/optimization-results.md` (before/after methodology + partial results + why).
+- **Hygiene:** `HF_HUB_OFFLINE=1` confirmed in `.env` + `config.py` default; the
+  training leg would set `HF_HUB_OFFLINE=0` only inside a dedicated training venv.
+  `tools/check-secrets.sh` passes (no HF_TOKEN in tracked files). `nemo/datasets/**`
+  images + `nemo/adapters/**/*.safetensors` gitignored; configs/captions/script/
+  README/manifest tracked.
+- **CP-014 status:** done (Generator LoRA loading + training config + plan + NeMo
+  install feasibility); training run deferred (time/memory-boxed) per the spec's
+  "ship the plan + partial results" clause. Full suite 77/77 green; ruff + mypy clean.

@@ -1,0 +1,52 @@
+# StyleForge FLUX LoRA training config (CP-014).
+#
+# Minimal proof-of-concept config for LoRA-specializing FLUX-dev-fp8 on a small
+# brand-style dataset so repeat-brand renders achieve higher palette-match with
+# fewer prompt tokens. Loaded by nemo/flux_lora_train.py.
+#
+# Tooling note: NVIDIA NeMo is the framework for LLM / speech / vision-language
+# model specialization. FLUX is a diffusion transformer; its LoRA specialization
+# uses the HuggingFace stack (diffusers + peft + accelerate) on top of the
+# NVIDIA-optimized FLUX-dev-fp8 base checkpoint (Blackwell FP8). This config +
+# script are the StyleForge proof; the scaling roadmap in README.md describes
+# how the same adapter strategy extends to a NeMo/Megatron-managed pipeline.
+
+base:
+  # ComfyUI's FLUX checkpoint, resolved to a diffusers loadable path by the script.
+  model_id: "black-forest-labs/FLUX.1-dev"          # HF id (HF_HUB_OFFLINE=0 for this leg)
+  fp8_variant: true                                  # use the NVIDIA FLUX-dev-fp8 weights
+  resolution: 1024
+
+lora:
+  rank: 16                                           # LoRA rank (r)
+  alpha: 16                                          # scaling = alpha / rank
+  dropout: 0.0
+  target_modules: ["to_q", "to_k", "to_v", "to_out.0"]  # attention proj of the DiT blocks
+
+dataset:
+  # 5-20 brand-style images (e.g. coffee-brand logos / packaging). The script
+  # expects a dir of PNG/JPG + a captions.txt with one caption per image (in
+  # sorted filename order). Captions embed the brand palette hex tokens so the
+  # adapter learns palette→style mapping.
+  image_dir: "nemo/datasets/coffee_brand"
+  captions_file: "nemo/datasets/coffee_brand/captions.txt"
+  brand_palette: ["#4A3728", "#C65D3B", "#F2E8D5", "#2D241B", "#A69B90"]
+
+training:
+  output_dir: "nemo/adapters/coffee_brand_lora"
+  epochs: 200
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  learning_rate: 1.0e-4
+  optimizer: "adamw"
+  mixed_precision: "bf16"                            # GB10 supports bf16
+  seed: 42
+  save_every_n_steps: 250
+  max_steps: 0                                       # 0 = run full epochs
+  caption_dropout: 0.05
+
+# The adapter is exported as a single safetensors file for ComfyUI's LoraLoader.
+# Copy it to ComfyUI's models/loras/ and set LORA_ADAPTER=<filename> in .env.
+export:
+  format: "comfyui"                                  # comfyui-compatible safetensors
+  filename: "styleforge_coffee_brand_lora.safetensors"

@@ -54,6 +54,14 @@ openclaw-home/
 comfyui.log
 openclaw.log
 
+# === NeMo LoRA (CP-014) — dataset images + trained adapters are large; keep
+#    configs, captions, script, README, and training_manifest.json tracked ===
+nemo/datasets/**/*.png
+nemo/datasets/**/*.jpg
+nemo/datasets/**/*.jpeg
+nemo/datasets/**/*.webp
+nemo/adapters/**/*.safetensors
+
 # === OS / editor ===
 .DS_Store
 Thumbs.db

@@ -1,0 +1,16 @@
+# Captions for the coffee-brand StyleForge LoRA dataset.
+# One caption per image, in sorted filename order. Each caption embeds the brand
+# palette hex tokens so the adapter learns the palette→style mapping.
+#
+# Replace these placeholder captions with real ones matching your image set.
+# Image filenames (sorted) → caption:
+#   01_logo.png        → minimalist coffee logo, espresso and oat cream, #4A3728 #C65D3B #F2E8D5
+#   02_packaging.png   → kraft coffee packaging, hand-drawn serif, #4A3728 #2D241B #A69B90
+#   03_social.png      → warm coffee social square, craft roaster, #C65D3B #F2E8D5
+#   04_hero.png        → coffee hero banner, espresso drizzle, #4A3728 #C65D3B
+#   05_wordmark.png    → hand-drawn serif wordmark, oat cream on espresso, #2D241B #F2E8D5
+minimalist coffee logo, espresso and oat cream, #4A3728 #C65D3B #F2E8D5
+kraft coffee packaging, hand-drawn serif, #4A3728 #2D241B #A69B90
+warm coffee social square, craft roaster, #C65D3B #F2E8D5
+coffee hero banner, espresso drizzle, #4A3728 #C65D3B
+hand-drawn serif wordmark, oat cream on espresso, #2D241B #F2E8D5

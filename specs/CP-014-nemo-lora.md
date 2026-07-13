@@ -1,6 +1,6 @@
 # CP-014 — NeMo LoRA fine-tuning optimization leg
 
-> Status: ready
+> Status: done (Generator LoRA loading + training config + plan; training run time/memory-boxed)
 > Depends on: CP-005
 > Phase: 4 Stretch (scoring boosters)
 
@@ -33,12 +33,33 @@ fewer prompt tokens. Implement a minimal proof + document the full plan — deep
 - Do not leave `HF_HUB_OFFLINE=0` set globally; scope it to this leg only.
 
 ## Acceptance tests
-- [ ] `nemo/` training config is valid and documented.
-- [ ] Generator can load a LoRA adapter via the workflow (mocked adapter path) without breaking the non-LoRA path.
-- [ ] If training completed: `docs/optimization-results.md` reports a `palette_match` delta (before vs after) on ≥ 1 asset.
-- [ ] If training did not complete: `docs/optimization-results.md` documents the plan + partial results + why.
-- [ ] `HF_HUB_OFFLINE` is `1` again after this leg (verify in `.env` and config defaults).
-- [ ] `tools/check-secrets.sh` passes (no `HF_TOKEN` in tracked files).
+- [x] `nemo/` training config is valid and documented.
+      (`nemo/lora_config.yaml` + `nemo/flux_lora_train.py` + `nemo/README.md`; the script
+      validates the dataset alignment and writes `training_manifest.json`.)
+- [x] Generator can load a LoRA adapter via the workflow (mocked adapter path) without
+      breaking the non-LoRA path.
+      (`build_workflow(lora_adapter=...)` injects a `LoraLoader` node and rewires the
+      KSampler model + CLIPTextEncode clip to the LoRA outputs; the VAE is untouched.
+      `lora_adapter=""` keeps the original non-LoRA graph. Tests:
+      `test_build_workflow_no_lora_is_unchanged`,
+      `test_build_workflow_lora_inserts_loader_no_pulid`,
+      `test_build_workflow_lora_with_pulid` — all green.)
+- [~] If training completed: `docs/optimization-results.md` reports a `palette_match`
+      delta (before vs after) on ≥ 1 asset.
+      Training did NOT complete (time/memory-boxed for the hackathon — the GB10's ~120 GiB
+      unified memory is shared with the live Ollama + ComfyUI demo). The before/after
+      methodology + measurement template are documented in `docs/optimization-results.md`.
+- [x] If training did not complete: `docs/optimization-results.md` documents the plan +
+      partial results + why. (NeMo install feasibility assessed — dry-run resolved on
+      aarch64 through the proxy + Tsinghua mirror: `nemo_toolkit` + torch 2.13 + triton 3.7
+      + CUDA-13 wheels. Generator-side adapter loading DONE. Training deferred with the
+      reason recorded.)
+- [x] `HF_HUB_OFFLINE` is `1` again after this leg (verify in `.env` and config defaults).
+      (`HF_HUB_OFFLINE=1` in `.env`; `Settings.hf_hub_offline: bool = True` in `config.py`.
+      The training leg would set `HF_HUB_OFFLINE=0` only inside a dedicated training venv
+      for the duration of the base-checkpoint pull; the orchestrator stays offline-first.)
+- [x] `tools/check-secrets.sh` passes (no `HF_TOKEN` in tracked files). (Verified: OK, no
+      secrets detected in tracked/staged content.)
 
 ## Relevant context
 - Design refs: `03-model-optimization.md` (O7 NeMo LoRA specialization).

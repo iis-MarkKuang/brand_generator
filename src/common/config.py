@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     comfyui_host: str = "http://127.0.0.1:8200"
     # Absolute path to the workshop comfyui-ctl.sh; empty disables CUDA-dirty restart.
     comfyui_ctl_script: str = ""
+    # CP-014: optional FLUX LoRA adapter (ComfyUI LoraLoader). Filename relative to
+    # ComfyUI's models/loras/ dir; empty disables LoRA (the default, non-LoRA path).
+    lora_adapter: str = ""
+    lora_strength: float = 1.0
 
     # --- OpenClaw ---
     openclaw_home: str = "/home/nvidia/build_a_claw_workshop/openclaw-home"
