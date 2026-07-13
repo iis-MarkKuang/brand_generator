@@ -17,14 +17,14 @@
 |---|---|---|
 | Ollama (Nemotron) | 11434 | `ollama serve` (already up in workshop) |
 | ComfyUI | 8200 | `scripts/comfyui-ctl.sh start` (`--fast` FP8) |
-| OpenClaw Gateway | 3030 | `openclaw` with `OPENCLAW_HOME` set |
+| OpenClaw Gateway | 9000 | `openclaw` with `OPENCLAW_HOME` set (port via `OPENCLAW_PORT`; workshop default 3030) |
 | FastAPI orchestrator | 8000 | `uvicorn src.orchestrator.api:app --host 0.0.0.0 --port 8000` |
 | Brand Kit Gallery | 5173 | `npm run dev` (Vite) in `frontend/` |
 | NemoClaw sandbox | — | `nemoclaw` CLI wraps the OpenClaw agent |
 | Telegram bridge | — | NemoClaw Telegram channel wiring |
 
 Access from a laptop on the same LAN: `http://<spark-ip>:5173` (gallery),
-`http://<spark-ip>:3030` (OpenClaw chat), `http://<spark-ip>:8000` (API).
+`http://<spark-ip>:9000` (OpenClaw chat), `http://<spark-ip>:8000` (API).
 
 ## Local model optimization (deployment-time)
 

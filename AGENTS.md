@@ -86,7 +86,7 @@ cache/                           # brand_dna cache (gitignored)
 
 ## Local services (DGX Spark)
 
-Ollama :11434 (Nemotron), ComfyUI :8200 (FLUX), OpenClaw :3030, FastAPI :8000,
+Ollama :11434 (Nemotron), ComfyUI :8200 (FLUX), OpenClaw :9000, FastAPI :8000,
 Gallery :5173. Start order & health checks via `make up` (created in CP-001).
 
 ## Testing

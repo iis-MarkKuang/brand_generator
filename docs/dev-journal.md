@@ -308,3 +308,35 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   CP-010 API smoke), `kit/{name}` + `kit.zip` routes verified. The board renders for the
   assembled golden run.
 - CP-011 acceptance: all green (build/tsc/eslint, secret scan, live dev smoke over LAN).
+
+## Day 2 (cont.) — CP-009 OpenClaw SKILL.md wiring
+- Packaged StyleForge as an OpenClaw skill so it's drivable from the gateway chat with
+  inline `MEDIA:` rendering — the "AI Agent platform" integration (rubric 4 / golden #1).
+  - `skills/styleforge/SKILL.md` — YAML front-matter (`name`, `description` with EN/CN
+    trigger phrases: 品牌视觉识别 / brand kit / brand identity …) + `metadata.openclaw`.
+  - `skills/styleforge/run_helper.sh` — bash entrypoint; sets `OPENCLAW_HOME`/`STYLEFORGE_API`
+    and execs the python helper. Holds **no secrets**, never reads `.env`.
+  - `skills/styleforge/styleforge_helper.py` — **pure stdlib** (urllib/json/pathlib, no
+    third-party imports) so it runs inside the NemoClaw sandbox with no venv. Auto-discovers
+    the user's reference image from `$OPENCLAW_HOME/.openclaw/media/inbound/` (workshop
+    convention; `STYLEFORGE_IMAGE` env override for tests), POSTs brief+image to the
+    orchestrator `/api/runs`, polls until assembled, downloads each approved asset via
+    `/api/runs/{id}/kit/{id}.png`, republishes into the OpenClaw media boundary
+    (`…/workspace/outputs/styleforge/<run_id>/`), and prints `MEDIA:<abs>` lines + a
+    `Brand guide:` line. `publish()` refuses to write outside the boundary.
+  - Symlinked into `$OPENCLAW_HOME/.openclaw/skills/styleforge` → repo copy, so edits are live.
+- **Port correction (deviation):** the deployed OpenClaw gateway binds **:9000**, not the
+  workshop notebook's configured 3030 (`openclaw.json` on this Spark uses 9000). Updated
+  `config.openclaw_port`, `.env`/`.env.example`, architecture, deployment, overview,
+  hackathon-requirements, AGENTS.md, and the CP-009 spec. The skill itself is unaffected
+  (it talks to FastAPI :8000, not the gateway).
+- Restarted the OpenClaw gateway (`scripts/openclaw-ctl.sh start`); Web UI live at
+  `http://192.168.110.70:9000`, agent model `ollama/qwen3.6:35b`.
+- **Live acceptance (real GPU, through the skill):** brief "一家温暖的手工小批量咖啡烘焙品牌…"
+  + sample_face.jpg, assets `logo,social_square` → run `20260713-095234-54296`,
+  **status=complete, 2/2 approved**, palette `#3C2415/#F2E8DC/#6F4E37/#FFF8E7/#C4A77D`,
+  1024×1024 PNGs published, 180 s end-to-end. `check-secrets.sh` clean.
+- New unit tests `tests/test_openclaw_skill.py` (6): front-matter parse, trigger phrases,
+  executable bit, no-secret patterns, stdlib-only imports, publish-boundary confinement.
+- CP-009 acceptance: 4/5 green (the 5th — manual browser chat click-through — is the user's
+  step; gateway + skill are live and the helper code path is verified end-to-end).

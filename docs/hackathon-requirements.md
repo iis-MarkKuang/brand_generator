@@ -50,7 +50,7 @@
   from registry), `nemotron-3-super:120b` (demo, ≈86 GB on disk).
 - **Image generation:** ComfyUI + FLUX.1-dev (fp8) + PuLID + InsightFace
   (face-preserving generation, Blackwell FP8 Tensor Core `--fast` mode).
-- **Agent platform:** OpenClaw (gateway :3030, skills = YAML front-matter + markdown body + bash/python helper, `MEDIA:` protocol for inline images in Web UI).
+- **Agent platform:** OpenClaw (gateway :9000 — configurable via `OPENCLAW_PORT`; workshop notebook uses 3030, skills = YAML front-matter + markdown body + bash/python helper, `MEDIA:` protocol for inline images in Web UI).
 - **NVIDIA SDKs:** NemoClaw (OpenShell sandboxing + governance + routed inference),
   NeMo (specialization/fine-tuning), NIM containers (local inference), Nemotron models.
 - **Stepfun models:** `step-3.7-flash` (flagship multimodal reasoning VLM),

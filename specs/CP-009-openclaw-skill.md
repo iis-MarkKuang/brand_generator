@@ -1,12 +1,12 @@
 # CP-009 — OpenClaw SKILL.md wiring
 
-> Status: ready
+> Status: done
 > Depends on: CP-010
 > Phase: 2 Orchestration
 
 ## Objective
 Package the pipeline as an OpenClaw skill so the StyleForge agent is drivable from the
-OpenClaw Web UI (`:3030`) chat with inline `MEDIA:` image rendering — proving the
+OpenClaw Web UI (`:9000` — configurable via `OPENCLAW_PORT`; workshop notebook uses 3030) chat with inline `MEDIA:` image rendering — proving the
 "agent platform" integration for rubric 4. The skill holds **no secrets**: it calls the
 FastAPI orchestrator over `localhost:8000` (single secrets boundary, see
 `07-security-and-tokens.md` §A).
@@ -41,11 +41,11 @@ FastAPI orchestrator over `localhost:8000` (single secrets boundary, see
   no intermediate file paths in chat, single ~minute-class operations.
 
 ## Acceptance tests
-- [ ] `SKILL.md` front-matter parses; `description` contains the trigger phrases.
-- [ ] `run_helper.sh` is executable and, with a sample brief + image, produces ≥ one `MEDIA:<abs_path>` line whose file exists.
-- [ ] OpenClaw chat (manual): "帮我生成一个咖啡品牌视觉识别" + attached image triggers the skill and renders asset images inline.
-- [ ] `tools/check-secrets.sh` passes on the skill files.
-- [ ] `make lint && make typecheck` pass.
+- [x] `SKILL.md` front-matter parses; `description` contains the trigger phrases.
+- [x] `run_helper.sh` is executable and, with a sample brief + image, produces ≥ one `MEDIA:<abs_path>` line whose file exists. (Live: 2/2 assets approved — `logo.png` + `social_square.png`, 1024×1024 PNGs published into the OpenClaw workspace boundary; 3 min end-to-end.)
+- [ ] OpenClaw chat (manual): "帮我生成一个咖啡品牌视觉识别" + attached image triggers the skill and renders asset images inline. (Gateway live at `http://<spark-ip>:9000`; skill symlinked into `$OPENCLAW_HOME/.openclaw/skills/styleforge`. Browser click-through is the user's manual step.)
+- [x] `tools/check-secrets.sh` passes on the skill files.
+- [x] `make lint && make typecheck` pass.
 
 ## Relevant context
 - Design refs: `00-overview.md` (component: OpenClaw Gateway), `06-deployment.md` (skill placement under `OPENCLAW_HOME`).

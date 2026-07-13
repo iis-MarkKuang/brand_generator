@@ -33,7 +33,7 @@ creator tooling, SMB branding. Clear monetization path (SaaS / one-shot packs).
 
 ```
                           ┌─────────────────────────────────────────────┐
-   User (chat / web UI) ─►│  OpenClaw Gateway :3030  (NemoClaw sandbox) │
+   User (chat / web UI) ─►│  OpenClaw Gateway :9000  (NemoClaw sandbox) │
                           │  Master Orchestrator Skill: "styleforge"     │
                           └───────────────────┬─────────────────────────┘
                                               │ brand brief + reference image
@@ -155,7 +155,7 @@ This is what differentiates us from a "wrapper":
 helper, `MEDIA:` inline-image protocol).
 
 **Front-end:** React + Vite "Brand Kit Gallery" (`:5173`) backed by a FastAPI orchestrator
-service (`:8000`) that wraps the agent calls; OpenClaw Web UI (`:3030`) for chat-driven
+service (`:8000`) that wraps the agent calls; OpenClaw Web UI (`:9000`) for chat-driven
 co-creation. Both run on the DGX Spark, accessed over LAN.
 
 ---

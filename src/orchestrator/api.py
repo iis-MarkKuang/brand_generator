@@ -168,8 +168,7 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
                 continue
             kit_p = d / "brand_kit" / "kit_manifest.json"
             status = "assembled" if kit_p.exists() else "pending"
-            out.append({"run_id": d.name, "status": status,
-                        "created_at": int(d.stat().st_mtime)})
+            out.append({"run_id": d.name, "status": status, "created_at": int(d.stat().st_mtime)})
         return {"runs": out}
 
     # ------------------------------------------------------------------ #
@@ -243,8 +242,11 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
         p = rd._confined("brand_kit", name)  # noqa: SLF001 — confined helper enforces boundary
         if not p.exists():
             raise HTTPException(status_code=404, detail="kit file not found")
-        media = "text/markdown; charset=utf-8" if name.endswith(".md") else (
-            "application/json" if name.endswith(".json") else "image/png")
+        media = (
+            "text/markdown; charset=utf-8"
+            if name.endswith(".md")
+            else ("application/json" if name.endswith(".json") else "image/png")
+        )
         return FileResponse(p, media_type=media)
 
     # ------------------------------------------------------------------ #

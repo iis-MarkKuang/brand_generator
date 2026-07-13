@@ -19,7 +19,7 @@ GPU's shared VRAM between Ollama and ComfyUI.
 
 ```
                           ┌──────────────────────────────────────────────────┐
-   User (chat / web / TG) │  OpenClaw Gateway :3030  (NemoClaw OpenShell      │
+   User (chat / web / TG) │  OpenClaw Gateway :9000  (NemoClaw OpenShell      │
                           │  sandbox, routed inference, policy)               │
                           │  Master Skill: "styleforge"                       │
                           └──────────────────────┬───────────────────────────┘
@@ -71,7 +71,7 @@ GPU's shared VRAM between Ollama and ComfyUI.
 
 | Component | Location | Tech | Port | Change packet |
 |---|---|---|---|---|
-| OpenClaw Gateway | local | OpenClaw | 3030 | CP-009 |
+| OpenClaw Gateway | local | OpenClaw | 9000 | CP-009 |
 | NemoClaw sandbox | local | OpenShell | — | CP-012 |
 | Orchestrator service | local | FastAPI | 8000 | CP-010 |
 | Brand Kit Gallery | local | React + Vite | 5173 | CP-011 |

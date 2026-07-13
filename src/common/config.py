@@ -79,7 +79,7 @@ class Settings(BaseSettings):
 
     # --- OpenClaw ---
     openclaw_home: str = "/home/nvidia/build_a_claw_workshop/openclaw-home"
-    openclaw_port: int = 3030
+    openclaw_port: int = 9000  # workshop notebook uses 3030; this Spark's gateway binds 9000
 
     # --- App ---
     app_port: int = 8000
