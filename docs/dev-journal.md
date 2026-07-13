@@ -262,3 +262,28 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   pipeline, swap scheduler, bounded loop, and partial-kit resilience are all verified.
 - CP-008 acceptance: all green (unit + golden E2E; complete-kit is a tuning lever, not a
   correctness gap).
+
+## Day 2 (cont.) — CP-010 FastAPI backend service
+- `src/orchestrator/api.py`: `create_app(settings, pipeline_fn) -> FastAPI` exposing
+  `POST /api/runs` (multipart → `{run_id}`, 202), `GET /api/runs/{id}` (manifest + stage),
+  `GET /api/runs/{id}/events` (SSE), `GET /api/runs/{id}/assets/{name}` (PNG),
+  `GET /api/runs/{id}/brand_guide`, `GET /api/runs/{id}/kit.zip`, `GET /api/health`
+  (Ollama/ComfyUI/Stepfun probes). Module-level `app = create_app()` for uvicorn.
+- **Single secrets boundary:** the only component loading `.env`. **Single-flight:** one
+  run at a time on the GB10 — `POST` returns **409** with the active `run_id` if a run is
+  active. Run registry held in a closure `_Registry` (runs + results).
+- **Security (S1/S2/S3/S5/S7):** `run_id` validated with `RUN_ID_REGEX`; file-serving
+  routes validate `name` as a bare basename (`[A-Za-z0-9_]+\.(png|md|json)`) and resolve via
+  `RunDir._confined` (asserts no escape); CORS restricted to `cors_allowed_origins` (never
+  `*`); multipart capped at `MAX_UPLOAD_MB` + Pillow `verify()`; SSE field allowlist only.
+- Routes typed with Pydantic models + `Annotated[..., Form()/File()]` (FastAPI-clean, no
+  B008). Structured request logging; never logs image bytes.
+- **Unit tests** (`tests/test_api.py`, httpx `ASGITransport` + mocked pipeline): POST→
+  manifest, concurrent 409, path-traversal blocked (4 variants → 400/404), oversize 413 +
+  non-image 400, CORS allowlist-only, kit.zip valid, health deps, SSE ≥3 events then
+  closes. 61 tests pass; ruff + mypy (24 files) green.
+- **Live smoke:** `uvicorn src.orchestrator.api:app` on :8000 — `/api/health` reports
+  ollama/comfyui/stepfun all reachable; a real 1-asset run POSTed via multipart, polled to
+  `stage=assembled`, and `kit.zip` downloaded (4 vram_swaps, 3 vlm_calls, 2 renders;
+  partial — strict critic + FLUX text). The full HTTP surface works end-to-end.
+- CP-010 acceptance: all green (unit + live smoke).

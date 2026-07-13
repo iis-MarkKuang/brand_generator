@@ -32,6 +32,7 @@ async def main() -> int:
             s.ollama_reasoning_model, [{"role": "user", "content": "Say OK."}], think=False
         )
         from src.common.vram import free_vram_gb
+
         print(f"free unified mem right after warm (model resident): {free_vram_gb()} GB")
         orch = ModelOrchestrator(run, settings=s, ollama=warm)
         try:

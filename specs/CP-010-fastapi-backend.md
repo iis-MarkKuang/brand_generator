@@ -1,6 +1,6 @@
 # CP-010 — FastAPI backend service
 
-> Status: ready
+> Status: done
 > Depends on: CP-008
 > Phase: 3 App surface
 
