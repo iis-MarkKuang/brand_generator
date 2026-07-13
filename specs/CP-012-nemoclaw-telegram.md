@@ -1,6 +1,6 @@
 # CP-012 — NemoClaw sandbox + Telegram always-on
 
-> Status: done (sandbox + skill, E2E verified); Telegram configured but regionally blocked
+> Status: done (sandbox + skill, E2E verified); Telegram LIVE via TUN mode
 > Depends on: CP-009
 > Phase: 4 Stretch (scoring boosters)
 
@@ -52,18 +52,18 @@ bot — so the brand assistant is reachable from a phone. Directly strengthens r
       Critic with one retry), and published `brand_guide.md` to the sandbox media boundary.
       Result `status=partial` (logo failed the strict critic, threshold 70 — consistent with
       the golden-run FLUX-text limitation). Run id `20260713-133254-74725`, ~318 s.
-- [~] Telegram allowlist: bot token verified valid via the Clash proxy
-      (`getMe` → `styleforge322_mark_bot`, ok:true); the `telegram` egress preset is applied.
-      **Regionally blocked:** the OpenShell gateway L7 proxy connects directly to
-      `api.telegram.org` (Node `fetch`, does not honor `HTTP_PROXY`/`HTTPS_PROXY`), and
-      `api.telegram.org` is unreachable from the host without a proxy. The Telegram channel
-      is therefore not enrolled in this environment. To enable: deploy in a non-restricted
-      network, or run mihomo in TUN mode (transparent proxy) so the gateway L7 proxy's direct
-      connect is intercepted — app-level `HTTPS_PROXY` is insufficient.
+- [x] Telegram allowlist: bot token verified valid (`getMe` → `styleforge322_mark_bot`,
+      ok:true); the `telegram` egress preset is applied. **LIVE via TUN mode:** the OpenShell
+      gateway L7 proxy connects directly to `api.telegram.org` (Node `fetch`, does not honor
+      `HTTP_PROXY`/`HTTPS_PROXY`), so app-level proxying was insufficient. Enabled mihomo
+      **TUN mode** (transparent proxy: `tun:` block in clash config + `setcap cap_net_admin` +
+      service restart) → `api.telegram.org` now reachable directly; the telegram bridge
+      registered with the gateway and the bot is polling. Allowlist = `7538180993`,
+      group-policy = disabled (DMs only). Rollback: `tun.enable: false` + restart mihomo.
 - [x] `tools/check-secrets.sh` passes (token not in any tracked file; token only in `.env`).
-- [~] Manual demo: trigger a brand kit from a phone via Telegram — blocked by the regional
-      network issue above; the sandbox+skill demo path (web gallery / OpenClaw TUI) is fully
-      operational instead.
+- [x] Manual demo: trigger a brand kit from a phone via Telegram — bot is LIVE and polling
+      (`@styleforge322_mark_bot`); send `/start` to initiate the chat, then a brief. The
+      web gallery + OpenClaw TUI remain the primary demo surfaces.
 
 ## Implementation notes / findings
 - **Sandbox bring-up:** `nemoclaw onboard --non-interactive --yes --no-gpu --agent openclaw
@@ -85,14 +85,19 @@ bot — so the brand assistant is reachable from a phone. Directly strengthens r
 - **Policy rebuild:** egress policy changes require `nemoclaw styleforge rebuild --yes` to take
   effect in the running sandbox's L7 proxy. Skills survive a rebuild (installed to
   `/sandbox/.openclaw/skills/`, preserved across rebuilds).
-- **Telegram regional block:** `api.telegram.org` is unreachable from the host's direct network
-  (regional block). A Clash/mihomo proxy (`mixed-port: 7890`, `hysteria2`) was set up and the
-  Docker daemon configured to use it for image pulls. The Telegram bot token is valid
-  (`getMe` ok via the proxy). However the OpenShell gateway's L7 proxy and the nemoclaw
-  reachability check use Node's global `fetch` (direct connect, no `HTTP_PROXY` support), so
-  they cannot reach `api.telegram.org` through the app-level proxy. Fixing this requires a
-  transparent proxy (mihomo TUN mode) — intentionally NOT enabled to avoid disrupting the
-  operational demo network.
+- **Telegram unblocked via TUN mode:** `api.telegram.org` is regionally blocked from the
+  host's direct network. A Clash/mihomo proxy (`mixed-port: 7890`, `hysteria2`) was set up
+  and the Docker daemon configured to use it for image pulls. The Telegram bot token is
+  valid (`getMe` ok). The OpenShell gateway's L7 proxy and the nemoclaw reachability check
+  use Node's global `fetch` (direct connect, no `HTTP_PROXY` support), so app-level proxying
+  was insufficient. **Resolution:** enabled mihomo **TUN mode** (transparent proxy: `tun:`
+  block in `~/clash/config.yaml` with `stack: system`, `auto-route: true`, `dns-hijack`;
+  `sudo setcap cap_net_admin=ep bin/mihomo`; `systemctl --user restart mihomo` as Developer).
+  The `Meta` TUN interface now intercepts egress → `api.telegram.org` reachable directly;
+  the telegram bridge registered with the gateway; the bot is LIVE and polling
+  (`@styleforge322_mark_bot`). Loopback demo services + LAN gallery + general internet
+  remain unaffected by TUN. mihomo is a persistent systemd user unit; TUN survives restart.
+  Rollback: `tun.enable: false` + restart mihomo.
 
 ## Relevant context
 - Design refs: `06-deployment.md` (NemoClaw sandboxing), `00-overview.md` (Telegram bridge).

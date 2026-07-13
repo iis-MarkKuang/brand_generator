@@ -98,7 +98,7 @@ ruff + mypy clean, CI green. See [`specs/ROADMAP.md`](specs/ROADMAP.md).
 | ✅ | CP-009: OpenClaw skill (secrets-free, `MEDIA:` protocol) |
 | ✅ | CP-010: FastAPI backend (SSE, single-flight, path-traversal guard) |
 | ✅ | CP-011: React Brand Kit Gallery |
-| ✅ | CP-012: NemoClaw sandbox (E2E verified) — Telegram configured but regionally blocked |
+| ✅ | CP-012: NemoClaw sandbox (E2E verified) — Telegram LIVE via TUN mode |
 | ✅ | CP-013: local↔NIM-cloud reasoning routing (local-first, sticky failover) |
 | ✅ | CP-014: FLUX LoRA specialization (Generator loading + training plan) |
 | ✅ | CP-015: tests + golden run + acceptance harness + CI |

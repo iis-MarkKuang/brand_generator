@@ -421,11 +421,31 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   global `fetch` (direct connect, does not honor `HTTP_PROXY`/`HTTPS_PROXY`), so they cannot
   reach `api.telegram.org` through the app-level proxy. `channels add telegram` reports
   "api.telegram.org is unreachable" and skips enrollment. Fixing this requires a transparent
-  proxy (mihomo TUN mode) — intentionally NOT enabled to avoid disrupting the operational
-  demo network. Telegram is documented as configured-but-regionally-blocked; it would work
-  in a non-restricted network.
-- **CP-012 status:** sandbox + StyleForge skill DONE (E2E verified); Telegram configured but
-  regionally blocked. The web gallery + OpenClaw TUI remain the primary demo surfaces.
+  proxy (mihomo TUN mode).
+- **CP-012 status (initial):** sandbox + StyleForge skill DONE (E2E verified); Telegram
+  configured but regionally blocked. The web gallery + OpenClaw TUI remain the primary demo
+  surfaces.
+
+### Telegram unblocked via TUN mode (2026-07-14)
+- Enabled mihomo **TUN mode** (transparent proxy): added a `tun:` block to
+  `~/clash/config.yaml` (stack: system, auto-route, dns-hijack) + `sudo setcap
+  cap_net_admin=ep bin/mihomo` + `systemctl --user restart mihomo` (run as Developer, not
+  root — root has no user session bus). The `Meta` TUN interface came up (198.18.0.0/30);
+  `api.telegram.org` now reachable DIRECTLY (HTTP 302, no app-level proxy needed) while
+  loopback demo services + LAN gallery + general internet all remain unaffected.
+- `nemoclaw styleforge channels add telegram` now passes the reachability check. Drove the
+  interactive prompts via a PTY helper (`/tmp/nemoclaw_expect.py`): reply-mode=all-messages,
+  allowed user ID=7538180993, group-policy=disabled (DMs only, security allowlist). The
+  telegram bridge registered with the OpenShell gateway; sandbox egress widened to
+  `api.telegram.org`; `telegram` preset applied; sandbox rebuilt.
+- Restarted the OpenClaw gateway so it picks up the telegram bridge → gateway log shows
+  `[telegram] [default] starting provider (@styleforge322_mark_bot)` + `isolated polling
+  ingress started`. **Telegram bot is now LIVE and polling.**
+- `TELEGRAM_ALLOWED_CHAT_IDS=7538180993` set in `.env`. The bot can only be driven by the
+  allowlisted user (prevents unauthorized GPU drain).
+- **CP-012 status (final):** sandbox + StyleForge skill DONE (E2E verified); Telegram LIVE.
+  mihomo TUN mode is persistent (systemd user unit + setcap). Rollback: set
+  `tun.enable: false` in the clash config + restart mihomo.
 
 ## CP-014 — NeMo LoRA specialization (2026-07-13)
 

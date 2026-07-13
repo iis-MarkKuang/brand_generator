@@ -95,7 +95,7 @@
   it; this is honest and demonstrates the quality gate, not a weakness).
 - If `nemotron-3-super:120b` is available for the demo, use it for the Art Director
   (deeper planning); otherwise `nemotron-3-nano:30b` (dev) is fine and faster.
-- If Telegram is regionally blocked on the demo network, omit it or show the
+- If Telegram is unreachable on the demo network (no TUN mode), omit it or show the
   "configured" state without claiming it is live. (See CP-012 notes.)
 - Keep on-screen text legible — the palette hex codes and the VRAM-swap log are the
   "evidence" the judges will look for.
