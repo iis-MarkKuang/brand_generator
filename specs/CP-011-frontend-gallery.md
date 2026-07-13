@@ -1,6 +1,6 @@
 # CP-011 — Brand Kit Gallery (React + Vite frontend)
 
-> Status: ready
+> Status: done
 > Depends on: CP-010
 > Phase: 3 App surface
 

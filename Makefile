@@ -10,15 +10,22 @@ deps: ## Install python + frontend deps
 		echo ">> installing frontend deps"; cd $(FRONTEND_DIR) && npm ci || npm install; \
 	else echo ">> frontend not initialized yet (skipped; comes in CP-011)"; fi
 
-up: ## Start services (stub until CP-010/CP-011)
-	@echo ">> 'make up' is a stub until CP-010 (FastAPI) and CP-011 (gallery) land."
-	@echo ">> For now run a single pipeline via: make run-demo"
+up: ## Start FastAPI backend + Vite gallery (CP-010/CP-011)
+	@echo ">> starting FastAPI on :8000 (logs: /tmp/styleforge_api.log)"
+	@cd . && nohup uv run uvicorn src.orchestrator.api:app --host 0.0.0.0 --port 8000 --log-level warning > /tmp/styleforge_api.log 2>&1 &
+	@echo ">> starting Vite gallery on :5173 (logs: /tmp/styleforge_vite.log)"
+	@cd $(FRONTEND_DIR) && nohup npm run dev > /tmp/styleforge_vite.log 2>&1 &
+	@sleep 3 && echo ">> up: backend http://127.0.0.1:8000  gallery http://127.0.0.1:5173"
 
-down: ## Stop services (stub until CP-010)
-	@echo ">> 'make down' is a stub until CP-010 lands."
+down: ## Stop FastAPI + Vite
+	@fuser -k 8000/tcp 2>/dev/null || true
+	@fuser -k 5173/tcp 2>/dev/null || true
 
-run-demo: check-secrets validate-env ## Run a sample pipeline end-to-end (stub until CP-008)
-	@echo ">> 'make run-demo' is a stub until CP-008 (orchestrator loop) lands."
+run-demo: check-secrets validate-env ## Run a sample pipeline end-to-end
+	$(PYTHON) tools/run_pipeline.py --brand "Ember & Oat" \
+		--brief "A warm, craft-first small-batch coffee roaster; hand-drawn serif, espresso and oat cream palette." \
+		--ref /home/Developer/build_a_claw_workshop-bundle/sample/sample_face.jpg \
+		--assets logo,social_square --run-id demo-001
 
 lint: ## Ruff lint + format check
 	uv run ruff check .

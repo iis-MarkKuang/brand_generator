@@ -287,3 +287,24 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   `stage=assembled`, and `kit.zip` downloaded (4 vram_swaps, 3 vlm_calls, 2 renders;
   partial — strict critic + FLUX text). The full HTTP surface works end-to-end.
 - CP-010 acceptance: all green (unit + live smoke).
+
+## Day 2 (cont.) — CP-011 Brand Kit Gallery (React + Vite)
+- `frontend/` Vite project: React 18 + TS + Tailwind v3 + TanStack Query + React Router.
+  Pages: New Kit (drag-drop image, brief, asset checkboxes, deps panel), Run Live View
+  (SSE event stream + asset lanes + DNA card + VRAM-swap stats), Brand Kit Board
+  (asset tiles w/ failure cards, palette strip, brand-guide preview, optimization stats,
+  download kit.zip), History (lists runs). `useRunSse` hook consumes
+  `/api/runs/{id}/events` with auto-close on `done`.
+- Added two small API endpoints the gallery needs: `GET /api/runs` (list run dirs) and
+  `GET /api/runs/{id}/kit/{name}` (serve a confined `brand_kit/` file for approved tiles),
+  plus `GET /api/runs/{id}/brand_dna` for the Live DNA card. All confined to the run dir.
+- `make up` / `make down` now start/stop the FastAPI backend (:8000) + Vite gallery
+  (:5173); `make run-demo` runs a sample pipeline.
+- **Build:** `npm run build` (= `tsc --noEmit && vite build`) passes; `eslint --max-warnings=0`
+  passes. Bundle 225 KB JS / 71 KB gzip. **Secret scan:** `grep` of `dist/` for known key
+  prefixes (nvapi-/hf_/sk-…) → none.
+- **Live dev smoke:** `make up` on the Spark — Vite at :5173 serves the gallery and proxies
+  `/api` to :8000; `/api/health` all-green, `/api/runs` lists prior runs (golden-001, the
+  CP-010 API smoke), `kit/{name}` + `kit.zip` routes verified. The board renders for the
+  assembled golden run.
+- CP-011 acceptance: all green (build/tsc/eslint, secret scan, live dev smoke over LAN).

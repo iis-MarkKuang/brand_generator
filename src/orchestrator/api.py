@@ -21,6 +21,7 @@ import io
 import json
 import re
 import zipfile
+from pathlib import Path
 from typing import Annotated, Any, get_args
 
 import httpx
@@ -156,6 +157,22 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
         return JSONResponse({"run_id": run_id}, status_code=202)
 
     # ------------------------------------------------------------------ #
+    @app.get("/api/runs")
+    async def list_runs() -> dict[str, Any]:
+        root = Path(runs_root).resolve()
+        if not root.exists():
+            return {"runs": []}
+        out = []
+        for d in sorted(root.iterdir(), reverse=True):
+            if not d.is_dir():
+                continue
+            kit_p = d / "brand_kit" / "kit_manifest.json"
+            status = "assembled" if kit_p.exists() else "pending"
+            out.append({"run_id": d.name, "status": status,
+                        "created_at": int(d.stat().st_mtime)})
+        return {"runs": out}
+
+    # ------------------------------------------------------------------ #
     @app.get("/api/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, Any]:
         rd = _run_dir(run_id)
@@ -165,6 +182,15 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
         if rd.kit_manifest_path().exists():
             manifest = json.loads(rd.kit_manifest_path().read_text())
         return {"run_id": run_id, "stage": _stage(rd, reg.runs.get(run_id)), "manifest": manifest}
+
+    # ------------------------------------------------------------------ #
+    @app.get("/api/runs/{run_id}/brand_dna")
+    async def brand_dna(run_id: str) -> JSONResponse:
+        rd = _run_dir(run_id)
+        p = rd.brand_dna_path()
+        if not p.exists():
+            raise HTTPException(status_code=404, detail="brand_dna not ready")
+        return JSONResponse(json.loads(p.read_text()))
 
     # ------------------------------------------------------------------ #
     @app.get("/api/runs/{run_id}/events")
@@ -207,6 +233,19 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
         if not p.exists():
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(p, media_type="image/png")
+
+    # ------------------------------------------------------------------ #
+    @app.get("/api/runs/{run_id}/kit/{name}")
+    async def serve_kit_file(run_id: str, name: str) -> FileResponse:
+        rd = _run_dir(run_id)
+        if not re.fullmatch(r"[A-Za-z0-9_]+\.(png|md|json)", name):
+            raise HTTPException(status_code=400, detail="invalid kit file name")
+        p = rd._confined("brand_kit", name)  # noqa: SLF001 — confined helper enforces boundary
+        if not p.exists():
+            raise HTTPException(status_code=404, detail="kit file not found")
+        media = "text/markdown; charset=utf-8" if name.endswith(".md") else (
+            "application/json" if name.endswith(".json") else "image/png")
+        return FileResponse(p, media_type=media)
 
     # ------------------------------------------------------------------ #
     @app.get("/api/runs/{run_id}/brand_guide")
