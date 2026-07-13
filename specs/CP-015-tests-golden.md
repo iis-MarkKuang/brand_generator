@@ -1,6 +1,6 @@
 # CP-015 — Tests + acceptance harness + golden run
 
-> Status: ready
+> Status: done
 > Depends on: CP-008
 > Phase: 5 Delivery
 
@@ -31,11 +31,28 @@ the demo is reliable and the docs can cite verified behavior. Supports rubric 3
 - CI must pass without GPU or external services.
 
 ## Acceptance tests
-- [ ] `make test` green; `make coverage` ≥ 80% on `src/`.
-- [ ] `tests/test_golden.py` passes against the captured golden outputs.
-- [ ] `tools/run-acceptance.sh` prints an all-green summary for the automatable CP acceptance items.
-- [ ] CI workflow passes on a fresh checkout (mocked backends).
-- [ ] `tools/check-secrets.sh` passes.
+- [x] `make test` green; `make coverage` ≥ 80% on `src/`.
+      (84 tests pass; coverage 87% on `src/` — `make coverage` / `make test-cov`.)
+- [x] `tests/test_golden.py` passes against the captured golden outputs.
+      (7 shape-drift tests: inputs/BrandDna/KitManifest shape, optimization stats,
+      palette cross-consistency, brand-guide markdown structure, fixture presence.)
+- [x] `tools/run-acceptance.sh` prints an all-green summary for the automatable CP
+      acceptance items. (6/6 PASS: ruff lint, ruff format, mypy, unit+golden tests,
+      secrets scan, golden fixtures — `make acceptance`.)
+- [x] CI workflow passes on a fresh checkout (mocked backends).
+      (`.github/workflows/ci.yml`: setup-python 3.12, uv sync, ruff, mypy, pytest,
+      check-secrets; mocked backends only, no GPU/external services.)
+- [x] `tools/check-secrets.sh` passes.
+
+## Implementation notes
+- The golden run was captured live during CP-008 (real Stepfun VLM + Ollama
+  nemotron-3-nano:30b + ComfyUI FLUX-dev-fp8). `test_golden.py` locks the captured
+  output *shapes* (schema drift detector) rather than re-running the pipeline, so
+  CI stays fast and GPU-free while still catching any BrandDna/KitManifest field
+  drift. Update the fixtures alongside intentional schema changes.
+- Coverage is 87% overall; the uncovered modules are `src/common/logging.py`
+  (logging setup, not exercised by unit tests) and the retry branches in
+  `_http.py` / `ollama.py` / `comfyui.py` (transient-error paths).
 
 ## Relevant context
 - Design refs: `02-data-contracts.md` (golden shapes), `AGENTS.md` (testing section).

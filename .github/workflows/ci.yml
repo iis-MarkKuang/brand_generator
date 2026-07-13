@@ -1,0 +1,44 @@
+name: CI
+
+# CP-015 — lint, typecheck, test on push/PR. Mocked backends only; no GPU or
+# external services required. Uses the Tsinghua PyPI mirror for reachability from
+# restricted networks (overridable via UV_INDEX_URL).
+
+on:
+  push:
+    branches: ["master", "cp-*"]
+  pull_request:
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync dependencies
+        env:
+          UV_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple/
+        run: uv sync
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy typecheck
+        run: uv run mypy src
+
+      - name: Tests (unit + golden, mocked backends)
+        run: uv run pytest -q
+
+      - name: Secrets scan
+        run: bash tools/check-secrets.sh

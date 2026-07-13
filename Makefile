@@ -40,11 +40,20 @@ typecheck: ## Mypy
 test: ## Pytest
 	uv run pytest
 
+test-cov: ## Pytest with coverage report (CP-015)
+	uv run pytest --cov=src --cov-report=term-missing --cov-report=html:coverage_html
+
+coverage: ## Print coverage summary on src/ (CP-015, ≥80% target)
+	@uv run pytest --cov=src --cov-report=term-missing -q --no-header 2>&1 | tail -n 20
+
 check-secrets: ## Fail if any secret is tracked/staged
 	@bash tools/check-secrets.sh
 
 validate-env: ## Fail if required env vars are missing/placeholder
 	@bash tools/validate-env.sh
+
+acceptance: ## Run automatable CP acceptance items (CP-015)
+	@bash tools/run-acceptance.sh
 
 clean: ## Remove generated run/cache artifacts
 	rm -rf runs/ cache/ .pytest_cache .ruff_cache .mypy_cache

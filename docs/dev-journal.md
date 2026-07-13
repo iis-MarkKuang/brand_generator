@@ -467,3 +467,24 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
 - **CP-014 status:** done (Generator LoRA loading + training config + plan + NeMo
   install feasibility); training run deferred (time/memory-boxed) per the spec's
   "ship the plan + partial results" clause. Full suite 77/77 green; ruff + mypy clean.
+
+## CP-015 — Tests + acceptance harness + golden run (2026-07-13)
+
+- **Golden shape-drift tests (`tests/test_golden.py`):** 7 tests locking the captured
+  golden-001 run shapes — inputs/BrandDna/KitManifest shape, optimization stats
+  (vram_swaps=7, effort routing, local-first routing_local_count=3), palette
+  cross-consistency (DNA hexes == manifest palette), brand-guide markdown structure,
+  fixture presence. The golden run was captured live (CP-008, real Stepfun + Ollama
+  nano + ComfyUI); the test is a shape-drift detector (no live re-run) so CI stays
+  fast and GPU-free.
+- **Coverage:** added `pytest-cov` dev dep; `make coverage` / `make test-cov`. Total
+  coverage 87% on `src/` (≥80% target). Uncovered: `logging.py` (setup) + transient
+  retry branches in `_http.py`/`ollama.py`/`comfyui.py`.
+- **Makefile:** added `test-cov`, `coverage`, `acceptance` targets.
+- **`tools/run-acceptance.sh`:** automatable CP acceptance harness — 6 checks (ruff
+  lint, ruff format, mypy, unit+golden tests, secrets scan, golden fixtures), 6/6 PASS.
+- **CI (`.github/workflows/ci.yml`):** setup-python 3.12 + uv sync + ruff + mypy +
+  pytest + check-secrets; mocked backends only, no GPU/external services. Uses the
+  Tsinghua mirror for reachability from restricted networks.
+- **Test count:** 84 tests total (77 unit + 7 golden), all green.
+- CP-015 acceptance: all green.
