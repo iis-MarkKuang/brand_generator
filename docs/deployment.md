@@ -36,7 +36,7 @@ sudo systemctl restart docker
 git clone <your-fork-url> styleforge && cd styleforge
 cp .env.example .env
 #   fill in: STEPFUN_API_KEY, NVIDIA_NIM_API_KEY, TELEGRAM_BOT_TOKEN (optional)
-#   confirm local hosts/ports (Ollama :11434, ComfyUI :8188, OpenClaw :9000)
+#   confirm local hosts/ports (Ollama :11434, ComfyUI :8200, OpenClaw :9000)
 
 # Python deps (use the Tsinghua mirror if PyPI is unreachable)
 export UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/
@@ -57,7 +57,7 @@ bash /path/to/build_a_claw_workshop-bundle/ollama-ctl.sh start
 ollama pull nemotron-3-nano:30b      # dev reasoning model (~24 GB)
 # (demo: pull nemotron-3-super:120b, ~86 GB on disk)
 
-# ComfyUI (FLUX-dev fp8 + PuLID on :8188, Blackwell --fast mode)
+# ComfyUI (FLUX-dev fp8 + PuLID on :8200, Blackwell --fast mode)
 bash /path/to/build_a_claw_workshop-bundle/comfyui-ctl.sh start
 ```
 

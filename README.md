@@ -47,7 +47,7 @@ brief + reference ─► Brand Analyst (Stepfun VLM) ─► brand_dna.json
 # 1. Configure secrets (never commit the real .env)
 cp .env.example .env
 #   fill in STEPFUN_API_KEY, NVIDIA_NIM_API_KEY, TELEGRAM_BOT_TOKEN (optional)
-#   confirm local hosts/ports (Ollama :11434, ComfyUI :8188, OpenClaw :9000)
+#   confirm local hosts/ports (Ollama :11434, ComfyUI :8200, OpenClaw :9000)
 
 # 2. Install deps (use the Tsinghua mirror if PyPI is unreachable)
 export UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/
