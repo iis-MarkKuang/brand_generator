@@ -25,7 +25,7 @@
 | CP-003 | [Brand Analyst agent (Stepfun VLM)](CP-003-brand-analyst.md) | 1 | CP-001, CP-002 | ✅ done |
 | CP-004 | [Art Director agent (local Nemotron)](CP-004-art-director.md) | 1 | CP-001, CP-002, CP-003 | ✅ done |
 | CP-005 | [Generator agent (ComfyUI FLUX+PuLID)](CP-005-generator.md) | 1 | CP-001, CP-002 | ✅ done |
-| CP-006 | [Critic agent (Stepfun VLM)](CP-006-critic.md) | 1 | CP-001, CP-002, CP-003 | ⬜ ready |
+| CP-006 | [Critic agent (Stepfun VLM)](CP-006-critic.md) | 1 | CP-001, CP-002, CP-003 | ✅ done |
 | CP-007 | [Model Orchestrator (GPU VRAM scheduler)](CP-007-model-orchestrator.md) | 1 | CP-001, CP-002 | ⬜ ready |
 | CP-008 | [Master orchestrator loop + Assembler](CP-008-orchestrator-loop.md) | 2 | CP-003, CP-004, CP-005, CP-006, CP-007 | ⬜ ready |
 | CP-009 | [OpenClaw SKILL.md wiring](CP-009-openclaw-skill.md) | 2 | CP-010 | ⬜ ready |

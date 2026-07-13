@@ -98,6 +98,7 @@ class Settings(BaseSettings):
     no_cloud_vision: bool = False
     vlm_image_detail_first: str = "high"
     vlm_image_detail_recheck: str = "low"
+    critic_pass_threshold: int = 70
     run_id_regex: str = r"^[A-Za-z0-9_-]{1,64}$"
 
     # JSON-encoded list env vars come in as raw strings; coerce them.

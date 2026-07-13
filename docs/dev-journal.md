@@ -178,3 +178,25 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   hand-drawn script wordmark in espresso #3B2417 on oat-cream #F3E9D8 with a coffee-bean
   motif, matching the palette hex tokens in the prompt.
 - CP-005 acceptance: all 5 criteria green.
+
+## Day 2 (cont.) — CP-006 Critic agent (Stepfun VLM)
+- `src/agents/critic.py`: `critic_asset(png_path, asset_spec, brand_dna, *, run_dir,
+  attempt, settings, client) -> CriticResult`. System prompt in `prompts/critic.md`
+  (strict-JSON, 0-100 score + palette_match/mood_match/legibility/on_brand + <60-word
+  actionable feedback; pass derived as `score >= critic_pass_threshold`).
+- **Effort/detail routing (T2/T3):** first attempt `reasoning_effort=medium`,
+  `image_detail=high`; re-checks (`attempt >= 2`) `low`/`low` (from
+  `vlm_image_detail_first`/`recheck` settings). Image pre-resized to ≤1024px.
+- **Resilience:** one repair retry on parse/schema failure, then a structured
+  `critic_failed` `CriticResult` (pass=false, score=0) — never crashes the run.
+  `feedback` forced non-empty when `pass=false` (fallback copy). Writes
+  `runs/<run_id>/assets/critic__<id>__v<attempt>.json` (with the `pass` JSON alias).
+- `critic_pass_threshold` setting added (default 70).
+- **Unit tests** (`tests/test_critic.py`, mocked VLM): pass boundary (69/70), re-check
+  uses `detail=low` (asserted on request), repair path, feedback-non-empty-when-fail,
+  structured-failure-never-crashes. 42 tests pass; ruff + mypy (18 files) green.
+- **Live smoke** (`tools/smoke_critic.py`): real Stepfun VLM on the CP-005 logo →
+  **score 94, pass=true**, all sub-scores 0.95; feedback correctly verified the
+  #F3E9D8/#3B2417 palette and the craft mood, with a concrete small-scale legibility
+  fix. Written to `runs/20260713-084812-92349/assets/critic__logo__v1.json`, ~21 s.
+- CP-006 acceptance: all 6 criteria green.
