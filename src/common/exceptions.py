@@ -29,5 +29,12 @@ class ComfyUIError(InferenceError):
     """ComfyUI prompt submit / poll / fetch failed."""
 
 
+class CudaDirtyError(ComfyUIError):
+    """ComfyUI CUDA context is dirty (invalid argument / illegal memory access).
+
+    Recoverable: restart ComfyUI and retry the render once.
+    """
+
+
 class NimError(InferenceError):
     """NVIDIA NIM (cloud) API call failed."""

@@ -1,6 +1,6 @@
 # CP-005 — Generator agent (ComfyUI FLUX + PuLID)
 
-> Status: ready
+> Status: done
 > Depends on: CP-001, CP-002
 > Phase: 1 Core agents
 

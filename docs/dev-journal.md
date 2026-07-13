@@ -151,3 +151,30 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   assets, deterministic seeds, written to `runs/20260713-040820-00855/asset_manifest.json`,
   ~26 s. Will re-run on `nemotron-3-nano:30b` once the pull completes.
 - CP-004 acceptance: all 5 criteria green.
+
+## Day 2 (cont.) — CP-005 Generator agent (ComfyUI FLUX + PuLID)
+- `src/comfyui/brand_workflow.json`: API-format graph derived from the workshop's
+  `superhero_face_api.json` (13 nodes: CheckpointLoaderSimple→flux1-dev-fp8,
+  PulidFlux* 2-6, CLIPTextEncode 7/8, FluxGuidance 9 guidance=3.5,
+  EmptySD3LatentImage 10, KSampler 11 cfg=1.0 euler/simple, VAEDecode 12, SaveImage 13).
+- `src/agents/generator.py`: `generate_asset(asset_spec, run_dir, attempt, ...) ->
+  RenderResult`. `build_workflow()` substitutes prompt/negative/size/seed/steps/filename
+  and **prunes PuLID nodes 2-6 + rewires KSampler model to [1,0]** when `uses_pulid=false`.
+  Single-flight (`asyncio.Lock`) on the GB10; CUDA-dirty auto-recovery
+  (`CudaDirtyError` on "CUDA error"/"illegal memory access"/"invalid argument" →
+  `comfyui-ctl.sh restart` → wait health → retry once). Non-recoverable errors return a
+  `RenderResult(error=...)` so the loop can mark the asset failed and continue.
+  Emits `MEDIA:<abs_path>`; writes `render_meta__<id>__v<attempt>.json`; vram snapshot
+  from `/proc/meminfo MemAvailable` (unified-memory proxy).
+- `RenderResult` + `CudaDirtyError` added to schemas/exceptions; `comfyui_ctl_script`
+  setting added (set in `.env` to the bundle script).
+- **Unit tests** (`tests/test_generator.py`, mocked ComfyUI): valid render (PNG +
+  render_meta written), PuLID-prune (no nodes 2-6, KSampler→[1,0]) and PuLID-keep paths,
+  CUDA-dirty (exactly one restart + one retry, final PNG written), non-CUDA error →
+  error result. 37 tests pass; ruff + mypy (17 files) green.
+- **Live smoke** (`tools/smoke_generator.py`): real FLUX fp8 render of a 1024² logo →
+  568 KB PNG in **31.1 s** (< 90 s target), `MEDIA:` emitted, `vram_free_mib=97720`
+  (~95 GB free). The render faithfully reproduced the brand brief — "Ember & Oat"
+  hand-drawn script wordmark in espresso #3B2417 on oat-cream #F3E9D8 with a coffee-bean
+  motif, matching the palette hex tokens in the prompt.
+- CP-005 acceptance: all 5 criteria green.

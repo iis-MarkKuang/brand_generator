@@ -181,3 +181,24 @@ class OrchestratorEvent(BaseModel):
     vram_before_gb: float | None = None
     vram_after_gb: float | None = None
     latency_s: float | None = None
+
+
+class RenderResult(BaseModel):
+    """Outcome of one Generator render attempt (also written as render_meta.json)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: str
+    attempt: int = Field(ge=1)
+    png_path: str
+    prompt_id: str
+    seed: int
+    steps: int
+    cfg: float
+    sampler: str = "euler"
+    scheduler: str = "simple"
+    guidance: float = 3.5
+    uses_pulid: bool = False
+    latency_s: float
+    vram_free_mib: int | None = None
+    error: str | None = None
