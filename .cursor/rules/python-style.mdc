@@ -1,0 +1,38 @@
+---
+description: Python coding standards for StyleForge backend
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python standards
+
+- Python 3.12, type hints on every function and model field.
+- Pydantic v2 for all data contracts (mirror `references/design/02-data-contracts.md`).
+- Config via `pydantic-settings` in `src/common/config.py`; never read `os.environ` ad hoc outside it.
+- Async for I/O (HTTP to Stepfun/Ollama/ComfyUI). No blocking calls in async paths.
+- Structure: `src/common` (config, schemas, clients), `src/agents` (one file per agent), `src/optimizer`, `src/orchestrator`.
+- Error handling: raise typed exceptions; never swallow. Agent failures return structured errors, not silent `None`.
+- Logging via `structlog` or stdlib `logging`; structured records with `run_id`, `agent`, `latency_s`. Never log secrets.
+- Validate JSON files on write AND read against the Pydantic schema.
+
+## Lint/format
+
+- `ruff check .` and `ruff format .` must pass.
+- `mypy src` must pass with no new errors.
+- No debug `print()` in committed code — use the logger.
+
+## Example — typed agent call
+
+```python
+async def analyze_brand(brief: str, image: Path, name: str) -> BrandDna:
+    resp = await stepfun.chat(
+        model=settings.stepfun_vlm_model,
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": analyst_prompt(brief, name)},
+            {"type": "image_url", "image_url": {"url": image_to_data_url(image)}},
+        ]}],
+        reasoning_effort="high",
+    )
+    dna = BrandDna.model_validate_json(resp)
+    return dna
+```

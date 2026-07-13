@@ -1,0 +1,15 @@
+---
+description: Frontend standards for the Brand Kit Gallery (React + Vite + TS + Tailwind)
+globs: "frontend/**/*"
+alwaysApply: false
+---
+
+# Frontend standards
+
+- Vite + React + TypeScript + Tailwind. No heavy UI kit.
+- Server state via TanStack Query; UI state via `useState`/`useReducer`.
+- Consume only the FastAPI contract in `references/design/05-frontend.md` (`:8000`).
+- Real-time via SSE on `/api/runs/{id}/events`; poll `/api/runs/{id}` every 2s as fallback.
+- Failed asset tiles must render a graceful "generation failed" card, never crash the board.
+- No secrets in the frontend. The gallery talks only to the local FastAPI backend.
+- Lint: `eslint` + `prettier` must pass. No `any` without a comment explaining why.

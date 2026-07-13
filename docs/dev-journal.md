@@ -1,0 +1,107 @@
+# Development journal — "Ten-Day Talk" (scoring criterion 6, 5%)
+
+Record the day-by-day development journey of StyleForge for the DGX Spark Hackathon.
+
+## Day 1 — Ideation & architecture
+- Parsed hackathon requirements & judging rubric → `docs/hackathon-requirements.md`.
+- Surveyed the DGX Spark workshop stack: Ollama (Nemotron-3-Super 120B, qwen3.6),
+  ComfyUI (FLUX + PuLID), OpenClaw agent platform, NemoClaw sandboxing.
+- Confirmed Stepfun `step-3.7-flash` as the VLM (native image understanding, tool
+  calling, OpenAI-compatible API).
+- Chose **StyleForge**: multi-agent brand identity studio. Locked architecture in
+  `docs/architecture.md`.
+
+## Day 1 (cont.) — Credentials & repo setup
+- Collected third-party keys, all stored in gitignored `.env` (template in `.env.example`):
+  - **Stepfun** `step-3.7-flash` VLM (Brand Analyst + Critic) — required.
+  - **NVIDIA build.nvidia.com** API key — enables local-vs-cloud NIM model routing demo.
+  - **Hugging Face** token — for the NeMo LoRA fine-tuning optimization leg.
+  - **Telegram** bot token — NemoClaw always-on remote access demo.
+- Initialized git repo (`master`, unborn). Verified `.env` is ignored (`.gitignore` line 2).
+- GitHub/Gitee push deferred; local repo ready for branching/committing.
+
+## Day 2 — Architecture design & coding-agent harness
+- Wrote the authoritative design in `references/design/` (7 docs):
+  00-overview, 01-agents, 02-data-contracts, 03-model-optimization,
+  04-comfyui-workflow, 05-frontend, 06-deployment.
+- Set up the coding-agent harness: `AGENTS.md`, 5 `.cursor/rules/*.mdc`
+  (architecture, change-packet-workflow, secrets, python-style, frontend-style),
+  and `tools/` scripts (`new-change-packet.sh`, `validate-env.sh`, `check-secrets.sh`).
+- Verified `check-secrets.sh` passes clean and detects a planted secret;
+  `validate-env.sh` passes against the real `.env`.
+- Decomposed the project into **16 change packets** (`specs/CP-001..CP-016`), each with
+  objective / scope / non-goals / constraints / acceptance tests / relevant context.
+- Updated `ROADMAP.md` with phases, dependency graph, critical path, and stretch path.
+
+## Day 2 (cont.) — Architecture/roadmap review & CP-001
+- Review pass found: drift (6→7 optimization points), security loopholes (path traversal,
+  CORS wildcard, upload DoS, Telegram unauthorized GPU drain, secrets-in-sandbox), and
+  token-explosion risks (unbounded VLM/render calls, image accumulation in director
+  context, full re-plans). Added `references/design/07-security-and-tokens.md` +
+  `.cursor/rules/security.mdc`; reconciled `docs/architecture.md`; updated affected CPs.
+- Key change: single secrets boundary — only the FastAPI orchestrator loads `.env`;
+  OpenClaw skill & NemoClaw sandbox call it over `localhost:8000`. Moved CP-009 to
+  depend on CP-010.
+- Environment: this dev box has no PyPI access; using the Tsinghua mirror
+  (`UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/`) for `uv`. uv 0.11.28 installed.
+- **CP-001 implemented:** `pyproject.toml` (uv, ruff, mypy, pytest), `src/common/`
+  (`config.py` pydantic-settings, `schemas.py` mirroring `02-data-contracts.md` with
+  token-hygiene + run-id guards, `logging.py` structlog w/ secret sanitization,
+  `runs.py` traversal-safe RunDir), `Makefile`, `tests/test_schemas.py` (11 tests).
+- Acceptance green: `make lint`, `make typecheck` (mypy strict, 0 issues), `make test`
+  (11 passed), `make check-secrets`, `make validate-env`.
+
+## Day 2 (cont.) — Local stack bring-up on the Spark
+- Discovered the **workshop bundle is present** at
+  `/home/Developer/build_a_claw_workshop-bundle/` (121 GB: Ollama+GB10 CUDA libs,
+  ComfyUI+venv, hf-cache with FLUX/PuLID/InsightFace, OpenClaw, scripts). Not at the
+  notebook's `/home/nvidia/...` path — updated `.env` `OPENCLAW_HOME` accordingly.
+- **GPU works via the bundle Ollama**: detected `CUDA / NVIDIA GB10 / iGPU /
+  total 119.7 GiB / available 111.9 GiB`. Key finding: the GB10 is a Grace-Blackwell
+  **integrated GPU with ~120 GiB unified memory** (not discrete VRAM — that's why
+  `nvidia-smi` reports `[N/A]`). Updated `docs/architecture.md`, `03-model-optimization.md`,
+  `06-deployment.md`, `CP-007`, `hackathon-requirements.md` to reflect unified memory
+  (was: "86 GB discrete VRAM"). The VRAM-scheduling story still holds; the bundle's
+  `OLLAMA_KEEP_ALIVE=5s` is the swap mechanism.
+- System `/usr/bin/ollama` failed to detect CUDA (CPU-only); the bundle's
+  `ollama/bin/ollama` (cuda_v13 libs) works. Started both services via the bundle's
+  `ollama-ctl.sh` / `comfyui-ctl.sh`.
+- Network: PyPI blocked → using Tsinghua mirror for uv; HuggingFace blocked but
+  `hf-mirror.com` reachable (not needed — bundle ships hf-cache); GitHub blocked but
+  gitee/ghfast.top reachable; Stepfun API + NVIDIA NIM cloud both reachable.
+- Models: bundle ships `qwen3.6:35b`; pulling `nemotron-3-nano:30b` from the Ollama
+  registry for the dev Art Director (demo will use `nemotron-3-super:120b`).
+- **Services up:** Ollama :11434 (GPU), ComfyUI :8200 (`--fast`, FLUX+PuLID).
+- Flagged: the bundle dir contains an `xmrig` miner (not part of the workshop) —
+  awareness only, left untouched.
+- Commits pending: no git identity configured on this box (config not modified per
+  harness rules); awaiting user name/email for the split commit (baseline on `master`,
+  CP-001 on its branch).
+
+## Day 2 (cont.) — CP-002 inference clients
+- Implemented four typed async clients behind the single secrets boundary:
+  `src/common/stepfun.py` (`StepfunClient` + `image_to_data_url`/`bytes_to_data_url`/
+  `resize_for_vlm`), `src/common/ollama.py` (`chat`/`stop`/`ps`/`vram_probe`),
+  `src/common/comfyui.py` (`submit`/`wait`/`fetch_image`/`health`),
+  `src/common/nvidia_nim.py` (`NimClient`). Shared `src/common/_http.py`
+  (`retry_transient` on 5xx/timeout) and `src/common/exceptions.py`.
+- `chat_vlm` injects `image_url.detail` tiers and does one JSON-repair retry (token
+  budget T3). `resize_for_vlm` pre-downscales to ≤1024px. Clients log model + latency +
+  token/step counts, never image bytes.
+- **Unit tests:** `tests/test_{stepfun,ollama,comfyui}_client.py` via `httpx.MockTransport`
+  + `tests/conftest.py` `fake_settings` (no real secrets). 24 tests pass.
+  `make lint` (ruff), `make typecheck` (mypy strict, 0 issues) green.
+- **Live smoke** (`tools/smoke_inference_clients.py`) all green on the Spark:
+  - Stepfun VLM `step-3.7-flash` parsed `{"dominant_color":"#d7262c"}` from a red square.
+  - Ollama `qwen3.6:35b` on the GB10 → `"ok"` (8.6s incl. load, `think=false`).
+  - ComfyUI `/api/system_stats` → healthy.
+  - NIM `nvidia/llama-3.3-nemotron-super-49b-v1.5` → 200 OK.
+- **NIM reasoning quirk found & recorded in CP-013:** Nemotron is a reasoning model —
+  `message.content` is `null` with the answer in `message.reasoning_content` (mirrors the
+  local `think` quirk). CP-002 transport is correct; CP-013 must extract from
+  `reasoning_content` or use `nvidia/llama-3.1-nemotron-nano-8b-v1` for short structured
+  output. Fixed a stale `.env`/config NIM model id (`nvidia/nemotron-3-super` →
+  `nvidia/llama-3.3-nemotron-super-49b-v1.5`) in `.env`, `.env.example`, `config.py`,
+  and pinned it in `03-model-optimization.md` O6.
+- `nemotron-3-nano:30b` (dev Art Director) pulling from the Ollama registry (~24 GB,
+  ~30% done). Services left running for subsequent CPs.

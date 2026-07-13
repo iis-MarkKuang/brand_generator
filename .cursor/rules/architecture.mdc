@@ -1,0 +1,26 @@
+---
+description: StyleForge architecture and agent/data contracts — authoritative design references
+alwaysApply: true
+---
+
+# Architecture rule
+
+The authoritative design lives in `references/design/`:
+
+- `00-overview.md` — system diagram, component inventory, runtime sequence, NFRs.
+- `01-agents.md` — the 6 agents (Brand Analyst, Art Director, Generator, Critic, Model Orchestrator, Assembler) and their I/O.
+- `02-data-contracts.md` — JSON schemas for every inter-agent handoff.
+- `03-model-optimization.md` — the 7-point optimization story (O1–O7).
+- `04-comfyui-workflow.md` — the FLUX+PuLID workflow + runner protocol.
+- `05-frontend.md` — the Brand Kit Gallery + API contract.
+- `06-deployment.md` — DGX Spark deployment + model optimization.
+
+## Hard constraints
+
+- The Art Director is the **delegating** agent; Analyst/Generator/Critic/Orchestrator are its tools. Do not flatten this into a linear script.
+- Every inter-agent handoff is a **validated JSON file** (`brand_dna.json`, `asset_manifest.json`, `critic_result.json`, `kit_manifest.json`, `orchestrator_log.json`). Implement these as Pydantic models in `src/common/schemas.py` exactly matching `02-data-contracts.md`.
+- Reasoning + generation are **local** (Nemotron via Ollama, ComfyUI FLUX). Vision understanding + critique use **Stepfun `step-3.7-flash`**. Cloud NVIDIA NIM is routing/failover only.
+- The Model Orchestrator owns the Ollama↔ComfyUI VRAM swap; no other component may call `ollama stop`/`ollama load` directly.
+- Every run is a self-contained dir under `runs/<run_id>/` with inputs, intermediates, renders, and `run.log`.
+
+Any change that diverges from these docs must first update the affected design doc and note the divergence in the change packet.

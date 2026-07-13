@@ -1,0 +1,27 @@
+---
+description: Change-packet (spec-driven) workflow — how to pick, branch, implement, and verify work
+alwaysApply: true
+---
+
+# Change-packet workflow
+
+We work in change packets. Each is a file `specs/CP-<NNN>-<slug>.md` with sections:
+objective, scope, non-goals, constraints, acceptance tests, relevant context. Index:
+`specs/ROADMAP.md`. Template + scaffold: `tools/new-change-packet.sh "<title>"`.
+
+## Steps
+
+1. Pick the next `ready` packet from `specs/ROADMAP.md` whose dependencies are all `done`.
+2. Create a branch: `git checkout -b cp-<NNN>-<slug>`.
+3. Implement only what is in the packet's **scope**. Respect **non-goals** explicitly.
+4. Satisfy **every acceptance test** in the packet — run them literally before marking done.
+5. Commit in focused chunks; prefix messages with the packet id, e.g. `CP-003: extract brand DNA via Stepfun VLM`.
+6. Update `ROADMAP.md` status: `ready` → `in-progress` → `done`.
+7. Run `tools/check-secrets.sh` before any commit.
+
+## Rules
+
+- Never code outside a change packet. If asked to do work no packet covers, create one first and add it to the roadmap.
+- One packet per branch; keep branches small and reviewable.
+- A packet is `done` only when all acceptance tests pass AND the relevant design docs are consistent.
+- If a packet uncovers needed work, create a new packet rather than expanding scope silently.

@@ -1,0 +1,34 @@
+---
+description: Application security & token-budget rules (path traversal, CORS, uploads, Telegram allowlist, token caps)
+alwaysApply: true
+---
+
+# Security & token-budget rule
+
+Detailed design: `references/design/07-security-and-tokens.md`. Hard requirements:
+
+## Single secrets boundary
+- Only the FastAPI orchestrator (`src/orchestrator/api.py`) loads `.env` and holds API keys.
+- The OpenClaw skill (`skills/styleforge/`) and any NemoClaw-sandboxed agent call the orchestrator over `localhost:8000` — they MUST NOT load `.env` or hold secrets.
+- The standalone CLI may load `.env` only for local tests/golden runs, never inside the sandbox.
+
+## HTTP routes (CP-010)
+- Validate `run_id` with regex `^[A-Za-z0-9_-]{1,64}$`.
+- For file-serving routes, `name` must be a bare basename (reject `/`, `\`, `..`, leading `.`); resolve the final path and assert it is inside `runs/<run_id>/`. Reject on any escape.
+- CORS: use `CORS_ALLOWED_ORIGINS` only; never `*`.
+- Uploads: enforce `MAX_UPLOAD_MB`; validate the image by parsing with Pillow (not by extension).
+- SSE event tailer: allowlist fields; never stream raw env or full user pasted text.
+
+## Telegram & sandbox (CP-012)
+- Bot drops messages from chats not in `TELEGRAM_ALLOWED_CHAT_IDS` before any GPU work.
+- NemoClaw sandbox mounts no secret files; deny-by-default egress; verify with a blocked-host negative test.
+
+## Token budget (CP-008 + CP-002 + CP-006)
+- Enforce global caps: `MAX_TOTAL_VLM_CALLS` (25), `MAX_TOTAL_RENDERS` (20), `RUN_TIMEOUT_S` (600). On any cap, stop and assemble a partial kit.
+- VLM `image_url.detail`: `high` for first critique, `low` for re-checks (attempt ≥ 2).
+- Pre-resize images to ≤1024px long side before base64-encoding for the VLM.
+- Art Director context is text-only — never pass image bytes into it; append only the failing asset's CriticResult; use per-asset `rewrite_prompt`, never a full manifest re-plan.
+- `AssetSpec.flux_prompt` ≤ 600 chars, `negative_prompt` ≤ 300 chars (schema-enforced).
+
+## Data egress
+- Brief + reference image go to Stepfun VLM by design; on NIM failover, reasoning TEXT (never images) goes to NVIDIA cloud. Document this in `docs/deployment.md`. Provide `NO_CLOUD_VISION=1` degraded mode.

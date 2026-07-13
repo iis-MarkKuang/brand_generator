@@ -1,0 +1,65 @@
+# === Secrets — NEVER commit ===
+.env
+.env.local
+.env.*.local
+*.key
+secrets/
+
+# === API keys / credentials ===
+credentials.json
+*-credentials.*
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === Node / frontend ===
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Model caches & runtime artifacts ===
+hf-cache/
+ollama-data/
+*.safetensors
+*.gguf
+*.pt
+*.bin
+!models/**/.gitkeep
+
+# === Generated outputs ===
+outputs/
+openclaw-home/
+*.pid
+comfyui.log
+openclaw.log
+
+# === OS / editor ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === Jupyter ===
+.ipynb_checkpoints/
