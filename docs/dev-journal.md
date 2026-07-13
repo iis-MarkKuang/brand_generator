@@ -340,3 +340,34 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   executable bit, no-secret patterns, stdlib-only imports, publish-boundary confinement.
 - CP-009 acceptance: 4/5 green (the 5th — manual browser chat click-through — is the user's
   step; gateway + skill are live and the helper code path is verified end-to-end).
+
+## Day 2 (cont.) — CP-013 NVIDIA NIM cloud model routing
+- Added a local↔cloud reasoning router (optimization O6) so the Art Director's text-only
+  planning/rewrite runs on local Ollama by default and **fails over to NVIDIA NIM cloud**
+  (`integrate.api.nvidia.com`, `nvidia/llama-3.3-nemotron-super-49b-v1.5`) when Ollama is
+  unavailable/overloaded. Failover is **sticky** for the rest of the run.
+  - `src/common/router.py` — `ReasonRouter` with a `ReasonClient` Protocol (duck-type
+    compatible with `OllamaClient.chat`), strategy-driven ordering
+    (`local-first` | `cloud-first` | `local-only`), sticky failover, NIM
+    `reasoning_content` extraction (reasoning-model quirk), and a decisions trail.
+  - Config: `ROUTING_STRATEGY` (default `local-first` — preserves the "local compute"
+    narrative; cloud is *failover*, not the default).
+  - Art Director (`plan_assets`/`rewrite_prompt`) now accepts any `ReasonClient`; the
+    runner constructs `ReasonRouter(ollama, nim, on_routing=orch.record_routing)` and
+    passes it to plan/rewrite instead of the raw Ollama client.
+  - Model Orchestrator: `record_routing` + `on_ollama_unavailable` write a `backend` field
+    on reasoning events in `orchestrator_log.json`; `OrchestratorEvent.backend` added.
+  - `OptimizationStats.routing_nim_count` now bumps on cloud-served reasoning.
+- **CP-012 network finding:** NemoClaw is blocked on this Spark — `github.com` and
+  `build.nvidia.com` are unreachable, and the OpenShell sandbox needs sudo (user not in
+  `docker` group, no passwordless sudo). Per user choice, mirrored the NemoClaw repo +
+  OpenShell v0.0.72 aarch64 binaries to `/home/Developer/nemoclaw-offline/` for later
+  (sudo-dependent setup deferred). `www.nvidia.com`, `api.github.com`,
+  `raw.githubusercontent.com`, `objects.githubusercontent.com` are reachable and were used
+  to fetch everything offline.
+- **Live smoke (`tools/smoke_router.py`):** dead Ollama → real NIM failover, 158-char
+  answer extracted from `reasoning_content`, sticky backend=nim, 11.4 s. PASS.
+- New tests `tests/test_router.py` (7): local-ok, local-down→NIM sticky, local-only
+  no-failover, cloud-first, reasoning_content extraction, empty-content raises,
+  orchestrator_log `backend` field.
+- CP-013 acceptance: all green (unit + live smoke).

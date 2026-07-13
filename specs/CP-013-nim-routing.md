@@ -1,6 +1,6 @@
 # CP-013 — NVIDIA NIM cloud model routing (local ↔ cloud)
 
-> Status: ready
+> Status: done
 > Depends on: CP-002, CP-004, CP-007
 > Phase: 4 Stretch (scoring boosters)
 
@@ -32,12 +32,12 @@ NVIDIA SDK utilization (rubric 4) + resilience (rubric 3).
 - Log every routing decision for the evidence trail.
 
 ## Acceptance tests
-- [ ] `pytest tests/test_router.py` — local ok → uses Ollama; local down → uses NIM; decision logged.
-- [ ] `ROUTING_STRATEGY=local-only` never calls NIM even when local is down (fails loud).
-- [ ] Art Director reasoning routed via `router.reason` end-to-end in a mocked pipeline.
-- [ ] `orchestrator_log.json` contains a `backend` field on reasoning events.
-- [ ] Live smoke (manual): kill Ollama → a run's planning step still completes via NIM.
-- [ ] `make lint && make typecheck` pass.
+- [x] `pytest tests/test_router.py` — local ok → uses Ollama; local down → uses NIM; decision logged.
+- [x] `ROUTING_STRATEGY=local-only` never calls NIM even when local is down (fails loud).
+- [x] Art Director reasoning routed via `router.reason` end-to-end in a mocked pipeline (runner wires `ReasonRouter` into `plan`/`rewrite`; `test_runner.py` still green).
+- [x] `orchestrator_log.json` contains a `backend` field on reasoning events (`OrchestratorEvent.backend` + `record_routing`).
+- [x] Live smoke: dead Ollama → a reasoning call completes via NIM (`tools/smoke_router.py`: real `nvidia/llama-3.3-nemotron-super-49b-v1.5`, 158-char answer extracted from `reasoning_content`, sticky backend=nim, 11.4 s).
+- [x] `make lint && make typecheck` pass.
 
 ## Relevant context
 - Design refs: `03-model-optimization.md` (O6 local↔cloud routing), `01-agents.md` (Art Director model).

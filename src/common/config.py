@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     nvidia_api_key: Annotated[str, Field(repr=False)]
     nvidia_nim_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_nim_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    # CP-013 local<->cloud reasoning router strategy:
+    #   local-first (default) | cloud-first | local-only
+    routing_strategy: str = "local-first"
 
     # --- Hugging Face (NeMo LoRA leg) ---
     hf_token: Annotated[str, Field(repr=False)]

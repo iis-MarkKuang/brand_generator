@@ -178,6 +178,7 @@ class OrchestratorEvent(BaseModel):
     t: datetime
     action: str
     reason: str = ""
+    backend: str = ""
     vram_before_gb: float | None = None
     vram_after_gb: float | None = None
     latency_s: float | None = None

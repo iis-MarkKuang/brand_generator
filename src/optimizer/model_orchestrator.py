@@ -95,6 +95,7 @@ class ModelOrchestrator:
         self._state = Stage.IDLE
         self._reasoning_in_flight = 0
         self._events: list[OrchestratorEvent] = []
+        self._sticky_backend: str | None = None  # CP-013: set when Ollama fails over to NIM
         self._log = _log.bind(agent="model_orchestrator", run_id=run_dir.run_id)
 
     # -- in-flight guard (never unload while reasoning) ---------------------- #
@@ -184,11 +185,33 @@ class ModelOrchestrator:
         self._log.warning("orchestrator.wait_free.timeout", threshold_gb=threshold_gb)
 
     # -- evidence trail ------------------------------------------------------- #
+    def on_ollama_unavailable(self, *, reason: str = "") -> None:
+        """CP-013: mark Ollama down — switch reasoning to NIM (sticky) for the run."""
+        self._sticky_backend = "nim"
+        self._record(action="reasoning:failover", backend="nim", reason=reason[:160])
+        self._log.warning("orchestrator.ollama_unavailable", reason=reason[:120])
+
+    def record_routing(
+        self, backend: str, *, ok: bool, reason: str = "", failover: bool = False
+    ) -> None:
+        """Append a reasoning routing decision to the evidence trail (CP-013)."""
+        action = "reasoning:failover" if failover else "reasoning"
+        self._record(
+            action=action,
+            backend=backend,
+            reason=reason[:160],
+        )
+
+    @property
+    def sticky_backend(self) -> str | None:
+        return self._sticky_backend
+
     def _record(
         self,
         *,
         action: str,
         reason: str = "",
+        backend: str = "",
         vram_before_gb: float | None = None,
         vram_after_gb: float | None = None,
         latency_s: float | None = None,
@@ -198,6 +221,7 @@ class ModelOrchestrator:
                 t=datetime.now(UTC),
                 action=action,
                 reason=reason,
+                backend=backend,
                 vram_before_gb=vram_before_gb,
                 vram_after_gb=vram_after_gb,
                 latency_s=latency_s,

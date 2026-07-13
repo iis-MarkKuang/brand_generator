@@ -38,8 +38,18 @@ Access from a laptop on the same LAN: `http://<spark-ip>:5173` (gallery),
 2. **FLUX.1-dev fp8** in ComfyUI with `--fast` (Blackwell FP8 Tensor Core path).
 3. **VRAM scheduling** (see `03-model-optimization.md` O1): Ollama↔ComfyUI swap managed
    by the Model Orchestrator agent so the two never OOM each other.
-4. **Optional NIM container** (optimization plan, CP-013/014): serve Nemotron via a local
-   NIM container for higher throughput than Ollama; cloud NIM as failover.
+4. **Optional NIM container** (optimization plan, CP-014): serve Nemotron via a local
+   NIM container for higher throughput than Ollama.
+5. **Local↔cloud reasoning routing (CP-013, optimization O6 — done):** the Art Director's
+   text-only reasoning runs on local Ollama by default and fails over to NVIDIA NIM cloud
+   (`integrate.api.nvidia.com`, `nvidia/llama-3.3-nemotron-super-49b-v1.5`) when Ollama is
+   unavailable/overloaded. Failover is **sticky** for the rest of the run. Controlled by
+   `ROUTING_STRATEGY` (`local-first` default | `cloud-first` | `local-only`). This is
+   *failover*, not the default path — the "local compute" narrative stays intact. The NIM
+   reasoning-model quirk (`message.content` is null; answer in `message.reasoning_content`)
+   is handled by `ReasonRouter._extract_nim_content`. Every routing decision is written to
+   `orchestrator_log.json` with a `backend` field. Vision never goes to NIM — images stay
+   with Stepfun.
 
 ## Secrets & config
 

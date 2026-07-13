@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from src.common.config import Settings, get_settings
 from src.common.ollama import OllamaClient
+from src.common.router import ReasonClient
 from src.common.runs import RunDir
 from src.common.schemas import AssetManifest, AssetSpec, AssetType, BrandDna
 
@@ -185,14 +186,15 @@ async def plan_assets(
     run_dir: RunDir,
     base_seed: int = 0,
     settings: Settings | None = None,
-    client: OllamaClient | None = None,
+    client: ReasonClient | None = None,
     cache_dir: str | Path | None = None,
 ) -> AssetManifest:
     """Plan a coherent `AssetManifest` (one AssetSpec per requested type).
 
     Cached per ``(brand_dna_hash, asset_types)``; on a hit the Ollama call is skipped
     and the manifest is re-stamped with the current ``run_id``. On a validation
-    failure, one repair retry describing the errors, then raise.
+    failure, one repair retry describing the errors, then raise. ``client`` may be
+    an ``OllamaClient`` or a ``ReasonRouter`` (CP-013 local<->cloud routing).
     """
     log = _log.bind(agent="art_director", run_id=run_dir.run_id, n_types=len(asset_types))
     bd_hash = brand_hash(brand_dna)
@@ -208,7 +210,7 @@ async def plan_assets(
 
     s = settings or get_settings()
     owns_client = client is None
-    oc = client or OllamaClient(s)
+    oc: ReasonClient = client or OllamaClient(s)
     try:
         messages = _build_plan_messages(brand_dna, asset_types)
         manifest = await _plan_with_repair(
@@ -233,7 +235,7 @@ async def plan_assets(
 
 
 async def _plan_with_repair(
-    oc: OllamaClient,
+    oc: ReasonClient,
     model: str,
     messages: list[dict[str, Any]],
     asset_types: Sequence[AssetType],
@@ -283,13 +285,13 @@ async def rewrite_prompt(
     critic_feedback: str,
     *,
     settings: Settings | None = None,
-    client: OllamaClient | None = None,
+    client: ReasonClient | None = None,
 ) -> AssetSpec:
     """Rewrite one asset's FLUX prompt in response to critic feedback (text-only)."""
     log = _log.bind(agent="art_director", asset_id=asset_spec.id)
     s = settings or get_settings()
     owns_client = client is None
-    oc = client or OllamaClient(s)
+    oc: ReasonClient = client or OllamaClient(s)
     try:
         user = (
             "Current asset spec:\n"

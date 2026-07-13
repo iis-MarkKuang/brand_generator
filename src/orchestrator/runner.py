@@ -26,7 +26,9 @@ from src.agents.critic import critic_asset
 from src.agents.generator import generate_asset
 from src.common.comfyui import ComfyUIClient
 from src.common.config import Settings, get_settings
+from src.common.nvidia_nim import NimClient
 from src.common.ollama import OllamaClient
+from src.common.router import ReasonRouter
 from src.common.runs import RunDir
 from src.common.schemas import (
     AssetManifest,
@@ -58,6 +60,17 @@ def _check_cache_hit(brief: str, image: str | Path) -> bool:
         return False
 
 
+def _bump_routing_stats(router: ReasonRouter, stats: OptimizationStats) -> None:
+    """Count the backend that actually served the last reasoning call (CP-013)."""
+    if not router.decisions:
+        return
+    last = router.decisions[-1]
+    if last["backend"] == "nim":
+        stats.routing_nim_count += 1
+    else:
+        stats.routing_local_count += 1
+
+
 async def run_pipeline(
     run_input: RunInput,
     *,
@@ -82,10 +95,13 @@ async def run_pipeline(
     owns_stepfun = stepfun_client is None
     owns_ollama = ollama_client is None
     owns_comfyui = comfyui_client is None
+    owns_nim = True  # CP-013 router owns the NIM client (not injectable yet)
     sc = stepfun_client or StepfunClient(s)
     oc = ollama_client or OllamaClient(s)
     cc = comfyui_client or ComfyUIClient(s)
+    nim = NimClient(s)
     orch = orchestrator or ModelOrchestrator(run_dir, settings=s, ollama=oc, comfyui=cc)
+    router = ReasonRouter(s, ollama=oc, nim=nim, on_routing=orch.record_routing)
 
     analyze = analyze_fn or analyze_brand
     plan = plan_fn or plan_assets
@@ -116,16 +132,16 @@ async def run_pipeline(
         )
         stats.total_vlm_calls += 1
 
-        # 2 — Art Director plan (local Ollama reasoning).
+        # 2 — Art Director plan (local Ollama reasoning, NIM failover via router).
         await orch.request_vram("ollama", reason="plan")
         orch.begin_reasoning()
         try:
             manifest = await plan(
-                dna, run_input.options.assets, run_dir=run_dir, settings=s, client=oc
+                dna, run_input.options.assets, run_dir=run_dir, settings=s, client=router
             )
         finally:
             orch.end_reasoning()
-        stats.routing_local_count += 1
+        _bump_routing_stats(router, stats)
 
         # 3 — per-asset generate→critique→refine loop.
         for idx, spec in enumerate(manifest.assets):
@@ -158,7 +174,7 @@ async def run_pipeline(
                     s,
                     orch,
                     sc,
-                    oc,
+                    router,
                     cc,
                     stats,
                     run_input.options.max_retries_per_asset,
@@ -183,6 +199,8 @@ async def run_pipeline(
             await sc.aclose()
         if owns_ollama:
             await oc.aclose()
+        if owns_nim:
+            await nim.aclose()
         if owns_comfyui:
             await cc.aclose()
         if orchestrator is None:
@@ -207,7 +225,7 @@ async def _process_asset(
     s: Settings,
     orch: ModelOrchestrator,
     sc: StepfunClient,
-    oc: OllamaClient,
+    router: ReasonRouter,
     cc: ComfyUIClient,
     stats: OptimizationStats,
     max_retries: int,
@@ -260,16 +278,16 @@ async def _process_asset(
             approved = True
             break
 
-        # Failed critique → rewrite prompt for the next attempt (local Ollama).
+        # Failed critique → rewrite prompt for the next attempt (router: local/NIM).
         last_error = result.feedback or "critic failed"
         if attempt <= max_retries:
             await orch.request_vram("ollama", reason=f"rewrite:{cur_spec.id}:v{attempt}")
             orch.begin_reasoning()
             try:
-                cur_spec = await rewrite(cur_spec, result.feedback, settings=s, client=oc)
+                cur_spec = await rewrite(cur_spec, result.feedback, settings=s, client=router)
             finally:
                 orch.end_reasoning()
-            stats.routing_local_count += 1
+            _bump_routing_stats(router, stats)
 
     return KitAsset(
         id=cur_spec.id,
