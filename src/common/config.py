@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     vlm_image_detail_first: str = "high"
     vlm_image_detail_recheck: str = "low"
     critic_pass_threshold: int = 70
+    vram_free_threshold_gb: float = 32.0
+    ollama_unload_timeout_s: int = 30
     run_id_regex: str = r"^[A-Za-z0-9_-]{1,64}$"
 
     # JSON-encoded list env vars come in as raw strings; coerce them.

@@ -24,6 +24,7 @@ from src.common.config import Settings, get_settings
 from src.common.exceptions import ComfyUIError, CudaDirtyError
 from src.common.runs import RunDir
 from src.common.schemas import AssetSpec, RenderResult
+from src.common.vram import free_vram_mib
 
 __all__ = ["generate_asset", "build_workflow", "CUDA_DIRTY_MARKERS"]
 
@@ -96,13 +97,7 @@ def _extract_output(entry: dict[str, Any]) -> dict[str, str]:
 
 
 def _vram_free_mib() -> int | None:
-    try:
-        for line in Path("/proc/meminfo").read_text().splitlines():
-            if line.startswith("MemAvailable:"):
-                return int(line.split()[1]) // 1024
-    except OSError:
-        return None
-    return None
+    return free_vram_mib()
 
 
 def _write_render_meta(run_dir: RunDir, asset_id: str, attempt: int, result: RenderResult) -> None:

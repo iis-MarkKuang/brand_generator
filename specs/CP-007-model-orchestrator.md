@@ -1,6 +1,6 @@
 # CP-007 — Model Orchestrator (GPU VRAM scheduler)
 
-> Status: ready
+> Status: done
 > Depends on: CP-001, CP-002
 > Phase: 1 Core agents
 

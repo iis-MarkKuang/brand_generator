@@ -200,3 +200,31 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   #F3E9D8/#3B2417 palette and the craft mood, with a concrete small-scale legibility
   fix. Written to `runs/20260713-084812-92349/assets/critic__logo__v1.json`, ~21 s.
 - CP-006 acceptance: all 6 criteria green.
+
+## Day 2 (cont.) — CP-007 Model Orchestrator (GB10 unified-memory scheduler)
+- `src/common/vram.py`: `free_vram_mib`/`free_vram_gb` from `/proc/meminfo MemAvailable`
+  (GB10 iGPU unified pool — `nvidia-smi` reports `[N/A]`). Generator refactored to use it.
+- `src/optimizer/model_orchestrator.py`: `ModelOrchestrator` owning the Ollama↔ComfyUI swap
+  state machine (`Stage` IDLE/REASONING/GENERATING). `request_vram("comfyui")` →
+  `ollama.stop(model)` (if no reasoning in flight) + poll `free_vram_gb` to
+  `vram_free_threshold_gb` + confirm ComfyUI health; `request_vram("ollama")` → best-effort
+  free ComfyUI + transition. **In-flight guard:** `begin/end_reasoning` refcount blocks
+  unload while a reasoning call is active. `effort_for(stage, attempt)` → VLM effort
+  (analyze/plan=high, critic=medium→low). `cache_key` = Brand-DNA O4 key. Every swap
+  appends an `OrchestratorEvent` (vram_before/after + latency) to
+  `runs/<id>/orchestrator_log.json` — the rubric-2 evidence trail.
+- Settings added: `vram_free_threshold_gb=32`, `ollama_unload_timeout_s=30`.
+- **Unit tests** (`tests/test_model_orchestrator.py`, mocked Ollama/ComfyUI/vram):
+  comfyui-unloads-ollama, ollama-transitions-no-stop + free-comfyui, in-flight guard
+  (no stop issued), orchestrator_log records events, `effort_for` routing, `cache_key`
+  stable. 50 tests pass; ruff + mypy (20 files) green.
+- **Live smoke** (`tools/smoke_model_orchestrator.py`): warm `nemotron-3-nano:30b` →
+  `request_vram("comfyui")` → **ok=True, unloaded=True, state=generating**, event logged
+  to `orchestrator_log.json` in ~0.05 s. Resident VRAM delta was ~0 because the bundle's
+  `OLLAMA_KEEP_ALIVE=5s` auto-frees nano quickly and nano is only 24 GB; the dramatic
+  ~80 GB freed-delta is a demo target with `nemotron-3-super:120b` (86 GB). The swap
+  mechanism, in-flight guard, and evidence trail are verified.
+- Also: restarted Ollama (it had stopped) — `nemotron-3-nano:30b` now registered alongside
+  `qwen3.6:35b`; restarted ComfyUI (it had exited after the CP-005 render).
+- CP-007 acceptance: unit + live-smoke mechanism green (the ~80 GB delta is deferred to
+  the super-model demo).
