@@ -272,3 +272,85 @@ async def test_sse_streams_events_then_closes(tmp_path) -> None:
         assert got[-1]["event"] == "done"
     finally:
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_iterate_endpoint(tmp_path) -> None:
+    """CP-019: POST /api/runs/{id}/iterate starts an iteration run."""
+    s = _settings(tmp_path)
+    # Set up a prev run with the required files
+    prev_id = "test-prev-run"
+    prev_rd = RunDir(Path(s.runs_root), prev_id).ensure()
+    prev_rd.path.joinpath("brand_dna.json").write_text(
+        json.dumps({
+            "brand_name": "TestBrand", "palette": [{"name": "g", "hex": "#1A3C2A", "rank": "primary"}],
+            "mood": ["earthy"], "typography_class": "serif",
+            "typography_pairs": {"headline": "P", "body": "I"},
+            "visual_keywords": ["min"], "dos": [], "donts": [], "personality": "refined",
+        })
+    )
+    prev_rd.manifest_path().write_text(
+        json.dumps({
+            "run_id": prev_id, "brand_dna_ref": "brand_dna.json",
+            "assets": [{"id": "logo", "type": "logo", "size": [1024, 1024],
+                        "flux_prompt": "a logo", "seed": 42}],
+        })
+    )
+    prev_kit = KitManifest(
+        run_id=prev_id, brand_name="TestBrand", status="complete",
+        assets=[KitAsset(id="logo", type="logo", path="brand_kit/logo.png", status="approved", final_score=80, error=None)],
+        palette=[], generated_at=datetime.now(UTC), total_latency_s=10,
+        optimization_stats=OptimizationStats(),
+    )
+    prev_rd.kit_manifest_path().write_text(prev_kit.model_dump_json(indent=2))
+
+    # Mock iterate_fn
+    async def _mock_iterate(prev_run_id, request, *, new_run_id, settings):
+        rd = RunDir(settings.runs_root, new_run_id).ensure()
+        kit = KitManifest(
+            run_id=new_run_id, brand_name="TestBrand", status="complete",
+            assets=[KitAsset(id="logo", type="logo", path="brand_kit/logo.png", status="approved", final_score=85, error=None)],
+            palette=[], generated_at=datetime.now(UTC), total_latency_s=5,
+            optimization_stats=OptimizationStats(vram_swaps=1),
+        )
+        rd.kit_manifest_path().write_text(kit.model_dump_json(indent=2))
+        return kit
+
+    app = create_app(settings=s, pipeline_fn=_mock_pipeline(), iterate_fn=_mock_iterate)
+    transport = httpx.ASGITransport(app=app)
+    client = httpx.AsyncClient(transport=transport, base_url="http://test")
+    try:
+        r = await client.post(
+            f"/api/runs/{prev_id}/iterate",
+            json={"feedback": "make the logo more minimalist", "assets": []},
+        )
+        assert r.status_code == 202
+        new_id = r.json()["run_id"]
+        assert r.json()["prev_run_id"] == prev_id
+        # Wait for the iterate task to finish
+        for _ in range(40):
+            g = await client.get(f"/api/runs/{new_id}")
+            if g.json().get("stage") == "assembled":
+                break
+            await asyncio.sleep(0.05)
+        g = await client.get(f"/api/runs/{new_id}")
+        assert g.status_code == 200
+        assert g.json()["stage"] == "assembled"
+        assert g.json()["manifest"]["run_id"] == new_id
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_iterate_404_on_missing_prev(tmp_path) -> None:
+    """Iterate on a non-existent prev run returns 404."""
+    s = _settings(tmp_path)
+    client, app = _client(s, _mock_pipeline())
+    try:
+        r = await client.post(
+            "/api/runs/nonexistent/iterate",
+            json={"feedback": "test", "assets": []},
+        )
+        assert r.status_code == 404
+    finally:
+        await client.aclose()

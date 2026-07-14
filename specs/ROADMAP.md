@@ -39,7 +39,7 @@
 | CP-016 | [Documentation, deployment guide, demo script](CP-016-documentation.md) | 5 | CP-011, CP-012 | ✅ done |
 | CP-017 | [VLM reasoning chain + consistency matrix](CP-017-vlm-reasoning-consistency.md) | 6 | CP-006, CP-008 | ✅ done |
 | CP-018 | [Real-time VRAM orchestration dashboard](CP-018-vram-dashboard.md) | 6 | CP-010, CP-011 | ✅ done |
-| CP-019 | [Conversational design iteration via Telegram](CP-019-conversational-iteration.md) | 6 | CP-008, CP-012 | ⬜ ready |
+| CP-019 | [Conversational design iteration via Telegram](CP-019-conversational-iteration.md) | 6 | CP-008, CP-012 | ✅ done |
 
 ## Dependency graph
 

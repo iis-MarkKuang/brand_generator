@@ -40,8 +40,8 @@ from PIL import Image, UnidentifiedImageError
 
 from src.common.config import Settings, get_settings
 from src.common.runs import RunDir, new_run_id
-from src.common.schemas import AssetType, RunInput, RunOptions
-from src.orchestrator.runner import run_pipeline
+from src.common.schemas import AssetType, IterateRequest, RunInput, RunOptions
+from src.orchestrator.runner import iterate_run, run_pipeline
 
 __all__ = ["create_app"]
 
@@ -64,11 +64,12 @@ _SSE_ALLOW = {
 }
 
 
-def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> FastAPI:
+def create_app(settings: Settings | None = None, pipeline_fn: Any = None, iterate_fn: Any = None) -> FastAPI:
     s = settings or get_settings()
     app = FastAPI(title="StyleForge", version="0.1.0")
     app.state.settings = s
     pipeline = pipeline_fn or run_pipeline
+    iter_fn = iterate_fn or iterate_run
 
     class _Registry:
         def __init__(self) -> None:
@@ -156,6 +157,41 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None) -> Fas
         reg.runs[run_id] = task
         _log.info("api.run.started", run_id=run_id, brand=brand_name, assets=asset_list)
         return JSONResponse({"run_id": run_id}, status_code=202)
+
+    # ------------------------------------------------------------------ #
+    @app.post("/api/runs/{prev_run_id}/iterate")
+    async def iterate_prev_run(
+        prev_run_id: str,
+        body: IterateRequest,
+    ) -> JSONResponse:
+        """CP-019: conversational design iteration — re-render with user feedback."""
+        # single-flight
+        active = [rid for rid, t in reg.runs.items() if not t.done()]
+        if active:
+            raise HTTPException(status_code=409, detail={"active_run_id": active[0]})
+
+        prev_rd = _run_dir(prev_run_id)
+        if not (prev_rd.path / "brand_dna.json").exists():
+            raise HTTPException(status_code=404, detail="previous run not found")
+        if not prev_rd.kit_manifest_path().exists():
+            raise HTTPException(status_code=409, detail="previous run not yet assembled")
+
+        new_id = new_run_id()
+
+        async def _iter_runner() -> Any:
+            try:
+                kit = await iter_fn(prev_run_id, body, new_run_id=new_id, settings=s)
+                reg.results[new_id] = kit
+                return kit
+            except Exception as exc:  # noqa: BLE001
+                _log.exception("api.iterate.failed", new_id=new_id, prev=prev_run_id)
+                reg.results[new_id] = exc
+                raise
+
+        task = asyncio.create_task(_iter_runner())
+        reg.runs[new_id] = task
+        _log.info("api.iterate.started", new_id=new_id, prev=prev_run_id, feedback=body.feedback[:80])
+        return JSONResponse({"run_id": new_id, "prev_run_id": prev_run_id}, status_code=202)
 
     # ------------------------------------------------------------------ #
     @app.get("/api/runs")

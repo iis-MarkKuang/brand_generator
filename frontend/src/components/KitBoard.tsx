@@ -1,12 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
-import { getBrandDna, getRun, kitFileUrl, kitZipUrl } from "../api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { getBrandDna, getRun, iterateRun, kitFileUrl, kitZipUrl } from "../api";
 import AssetTile from "./AssetTile";
 import ConsistencyMatrixCard from "./ConsistencyMatrixCard";
 import PaletteStrip from "./PaletteStrip";
 
 export default function KitBoard() {
   const { runId } = useParams<{ runId: string }>();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [feedback, setFeedback] = useState("");
+  const [iterating, setIterating] = useState(false);
   const run = useQuery({
     queryKey: ["run", runId],
     queryFn: () => getRun(runId!),
@@ -55,6 +60,45 @@ export default function KitBoard() {
       <div className="bg-panel border border-edge rounded-xl p-4">
         <div className="text-xs uppercase tracking-wider text-muted mb-2">Palette</div>
         <PaletteStrip palette={manifest.palette} />
+      </div>
+
+      {/* CP-019: Conversational design iteration */}
+      <div className="bg-panel border border-accent/30 rounded-xl p-4">
+        <div className="text-xs uppercase tracking-wider text-accent mb-2">
+          ✨ Iterate — refine your brand
+        </div>
+        <p className="text-sm text-muted mb-3">
+          Tell the AI what to change. It will re-analyze your current assets with the VLM,
+          rewrite the prompts with the local LLM, and re-render only the affected assets.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="e.g. make the logo more minimalist, or switch to warmer tones"
+            className="flex-1 bg-edge rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+            disabled={iterating}
+          />
+          <button
+            type="button"
+            disabled={!feedback.trim() || iterating}
+            onClick={async () => {
+              setIterating(true);
+              try {
+                const res = await iterateRun(runId!, feedback.trim());
+                qc.invalidateQueries({ queryKey: ["runs"] });
+                navigate(`/run/${res.run_id}`);
+              } catch (e) {
+                alert(String(e));
+                setIterating(false);
+              }
+            }}
+            className="bg-accent hover:bg-accent/90 text-white font-semibold rounded-lg px-4 py-2 text-sm disabled:opacity-40"
+          >
+            {iterating ? "Starting…" : "Iterate →"}
+          </button>
+        </div>
       </div>
 
       <div>

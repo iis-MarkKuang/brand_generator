@@ -58,6 +58,23 @@ export async function getHealth(): Promise<{ status: string; deps: HealthDeps }>
   return asJson(await fetch(`${base}/api/health`));
 }
 
+export async function iterateRun(
+  prevRunId: string,
+  feedback: string,
+): Promise<{ run_id: string; prev_run_id: string }> {
+  const res = await fetch(`${base}/api/runs/${prevRunId}/iterate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ feedback, assets: [] }),
+  });
+  if (res.status === 409) {
+    const body = await res.json();
+    const active = body?.detail?.active_run_id ?? "unknown";
+    throw new Error(`A run is already active (${active}). Wait for it to finish.`);
+  }
+  return asJson(res);
+}
+
 export function assetUrl(runId: string, name: string): string {
   return `${base}/api/runs/${runId}/assets/${name}`;
 }

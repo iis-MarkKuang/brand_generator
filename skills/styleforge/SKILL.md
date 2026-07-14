@@ -24,6 +24,16 @@ helper 会自动从 OpenClaw 的 inbound 目录拿用户最新上传的参考图
 
 `$OPENCLAW_HOME` 是 OpenClaw 启动时注入到 shell 的环境变量，bash 会自动展开。**不要**改写成 `~/.openclaw` 或硬编码路径。
 
+## Iterate (CP-019 — conversational design iteration)
+
+用户收到品牌包后，如果只发文字（不带图）想微调，helper 会自动找到最近一次完成的 run 并迭代：
+
+```bash
+"$OPENCLAW_HOME/.openclaw/skills/styleforge/run_helper.sh" "logo 再极简一点，去掉多余的装饰线条"
+```
+
+helper 检测到没有新参考图时，会调用 `POST /api/runs/{prev_id}/iterate`，把用户的反馈传给 Art Director 重写 prompt，只重新渲染需要改的资产（其他资产从上一轮复用），再跑一轮 Critic + 一致性检查。
+
 ## Output
 
 helper 在 stdout 打印：

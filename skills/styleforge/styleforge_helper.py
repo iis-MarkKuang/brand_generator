@@ -125,6 +125,34 @@ def post_run(brief: str, image_path: Path, brand_name: str, assets: str) -> str:
     return str(data["run_id"])
 
 
+def find_latest_assembled_run() -> str | None:
+    """GET /api/runs → return the most recent run_id with status 'assembled'."""
+    try:
+        data = _http_json(urllib.request.Request(f"{API}/api/runs", method="GET"))
+        runs = data if isinstance(data, list) else (data.get("runs", []) if isinstance(data, dict) else [])
+        for r in runs:  # already sorted newest-first by the API
+            if isinstance(r, dict) and r.get("status") == "assembled":
+                rid = str(r.get("run_id", "")).strip()
+                return rid or None
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def post_iterate(prev_run_id: str, feedback: str) -> str:
+    """POST /api/runs/{prev_id}/iterate (JSON) → new run_id (CP-019)."""
+    body = json.dumps({"feedback": feedback, "assets": []}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{API}/api/runs/{prev_run_id}/iterate",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    data = _http_json(req, body)
+    if not isinstance(data, dict) or "run_id" not in data:
+        raise RuntimeError(f"unexpected /iterate response: {data!r}")
+    return str(data["run_id"])
+
+
 def poll_until_assembled(run_id: str) -> dict:
     deadline = time.time() + POLL_TIMEOUT_S
     last_stage = ""
@@ -289,16 +317,27 @@ def main() -> int:
         image = Path(explicit).resolve()
     else:
         image = latest_inbound_image()
+
+    # CP-019: conversational iteration — if no image but there's a recent
+    # completed run, treat the brief as iteration feedback.
+    is_iterate = False
     if image is None:
-        print(
-            "ERROR: 没有找到参考图。请先在对话里附一张参考图。",
-            file=sys.stderr,
-        )
-        return 1
-    log(f"reference image -> {image}")
+        prev_id = find_latest_assembled_run()
+        if prev_id:
+            log(f"no image — iterating on prev run {prev_id} with feedback: {brief[:80]}")
+            is_iterate = True
+        else:
+            print(
+                "ERROR: 没有找到参考图，也没有可迭代的历史 run。"
+                "请先在对话里附一张参考图开始新的品牌生成。",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        log(f"reference image -> {image}")
 
     brand_name = derive_brand_name(brief)
-    log(f"brand_name = {brand_name!r}, assets = {assets!r}")
+    log(f"brand_name = {brand_name!r}, assets = {assets!r}, iterate={is_iterate}")
 
     # Health-check the orchestrator (helpful, not fatal).
     try:
@@ -307,8 +346,12 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         log(f"orchestrator health check failed: {exc}")
 
-    log("POST /api/runs …")
-    run_id = post_run(brief, image, brand_name, assets)
+    if is_iterate:
+        log(f"POST /api/runs/{prev_id}/iterate …")
+        run_id = post_iterate(prev_id, brief)
+    else:
+        log("POST /api/runs …")
+        run_id = post_run(brief, image, brand_name, assets)
     log(f"run_id = {run_id}, polling until assembled (~{POLL_TIMEOUT_S}s ceiling)")
 
     manifest = poll_until_assembled(run_id)

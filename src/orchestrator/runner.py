@@ -35,14 +35,16 @@ from src.common.schemas import (
     AssetManifest,
     AssetSpec,
     BrandDna,
+    IterateRequest,
     KitAsset,
+    KitManifest,
     OptimizationStats,
     RunInput,
 )
 from src.common.stepfun import StepfunClient
 from src.optimizer.model_orchestrator import ModelOrchestrator, effort_for
 
-__all__ = ["run_pipeline"]
+__all__ = ["run_pipeline", "iterate_run"]
 
 _log = structlog.get_logger(__name__)
 
@@ -313,3 +315,153 @@ async def _process_asset(
         final_score=final_score,
         error=None if approved else (last_error or "max retries exhausted"),
     )
+
+
+async def iterate_run(
+    prev_run_id: str,
+    request: IterateRequest,
+    *,
+    new_run_id: str,
+    settings: Settings | None = None,
+    stepfun_client: StepfunClient | None = None,
+    ollama_client: OllamaClient | None = None,
+    comfyui_client: ComfyUIClient | None = None,
+    orchestrator: ModelOrchestrator | None = None,
+    cancel_event: asyncio.Event | None = None,
+) -> KitManifest:
+    """CP-019: conversational design iteration.
+
+    Loads the previous run's Brand DNA + asset manifest, re-renders the requested
+    assets (or all approved) using the user's feedback as the rewrite cue, copies
+    unchanged approved assets from the prev run, and assembles a new kit.
+    Showcases the multi-turn VLM→LLM→Generator agent loop on DGX Spark.
+    """
+    s = settings or get_settings()
+    log = _log.bind(agent="runner", run_id=new_run_id, prev_run_id=prev_run_id, mode="iterate")
+    t0 = time.perf_counter()
+
+    prev_dir = RunDir(Path("runs"), prev_run_id)
+    dna_path = prev_dir.path / "brand_dna.json"
+    manifest_path = prev_dir.manifest_path()  # asset_manifest.json
+    kit_manifest_path = prev_dir.kit_manifest_path()
+    if not dna_path.exists() or not manifest_path.exists() or not kit_manifest_path.exists():
+        raise FileNotFoundError(
+            f"previous run {prev_run_id} missing brand_dna.json / asset_manifest.json / kit_manifest.json"
+        )
+
+    dna = BrandDna.model_validate_json(dna_path.read_text(encoding="utf-8"))
+    prev_asset_manifest = AssetManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+    prev_kit = KitManifest.model_validate_json(kit_manifest_path.read_text(encoding="utf-8"))
+
+    # Map asset_id → prev KitAsset (to know which were approved)
+    prev_kit_map = {a.id: a for a in prev_kit.assets}
+    # Map asset_id → original AssetSpec
+    spec_map = {sp.id: sp for sp in prev_asset_manifest.assets}
+    approved_ids = [a.id for a in prev_kit.assets if a.status == "approved"]
+    rerender_ids = set(request.assets) if request.assets else set(approved_ids)
+
+    log.info("iterate.loaded", prev_approved=len(approved_ids), rerender=len(rerender_ids))
+
+    run_dir = RunDir(Path("runs"), new_run_id).ensure()
+    # Copy the brand DNA to the new run dir (so the assembler + consistency can find it)
+    shutil.copyfile(dna_path, run_dir.path / "brand_dna.json")
+    stats = OptimizationStats(brand_dna_cache_hit=True)
+
+    owns_stepfun = stepfun_client is None
+    owns_ollama = ollama_client is None
+    owns_comfyui = comfyui_client is None
+    sc = stepfun_client or StepfunClient(s)
+    oc = ollama_client or OllamaClient(s)
+    cc = comfyui_client or ComfyUIClient(s)
+    nim = NimClient(s)
+    orch = orchestrator or ModelOrchestrator(run_dir, settings=s, ollama=oc, comfyui=cc)
+    router = ReasonRouter(s, ollama=oc, nim=nim, on_routing=orch.record_routing)
+
+    kit_assets: list[KitAsset] = []
+    new_specs: list[AssetSpec] = []
+
+    try:
+        for aid in approved_ids:
+            orig_spec = spec_map.get(aid)
+            if orig_spec is None:
+                log.warning("iterate.no_spec", asset_id=aid)
+                continue
+
+            if aid in rerender_ids:
+                # Rewrite the prompt using the user's feedback as the "critique"
+                await orch.request_vram("ollama", reason=f"iterate:{aid}")
+                orch.begin_reasoning()
+                try:
+                    new_spec = await rewrite_prompt(orig_spec, request.feedback, settings=s, client=router)
+                finally:
+                    orch.end_reasoning()
+                _bump_routing_stats(router, stats)
+                new_specs.append(new_spec)
+                log.info("iterate.rewritten", asset_id=aid, feedback=request.feedback[:80])
+
+                # Render + critique (reuse _process_asset)
+                kit_assets.append(
+                    await _process_asset(
+                        new_spec, dna, run_dir, s, orch, sc, router, cc, stats,
+                        1, cancel_event, t0,  # max_retries=1 in iteration mode
+                        generate_asset, critic_asset, rewrite_prompt, log,
+                    )
+                )
+            else:
+                # Copy unchanged approved asset from prev run
+                prev_png = prev_dir.path / prev_kit_map[aid].path
+                if prev_png.exists():
+                    dst = run_dir.kit_asset_path(f"{aid}.png")
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(prev_png, dst)
+                    kit_assets.append(KitAsset(
+                        id=aid,
+                        type=orig_spec.type,
+                        path=f"brand_kit/{aid}.png",
+                        status="approved",
+                        final_score=prev_kit_map[aid].final_score,
+                        error=None,
+                    ))
+                    new_specs.append(orig_spec)
+                    log.info("iterate.reused", asset_id=aid)
+
+        # Persist the new asset manifest
+        new_manifest = AssetManifest(
+            run_id=new_run_id,
+            brand_dna_ref="brand_dna.json",
+            assets=new_specs,
+        )
+        run_dir.manifest_path().write_text(new_manifest.model_dump_json(indent=2), encoding="utf-8")
+
+        # Assemble the new kit
+        total_latency = time.perf_counter() - t0
+        stats.vram_swaps = sum(1 for e in orch.events if e.action.startswith("request_vram:"))
+        kit = await assemble_kit(
+            run_dir, new_manifest, dna, kit_assets, total_latency_s=total_latency, stats=stats
+        )
+
+        # Consistency check
+        approved_pairs: list[tuple[str, str | Path]] = [
+            (a.id, run_dir.path / a.path)
+            for a in kit_assets
+            if a.status == "approved" and a.path
+        ]
+        if len(approved_pairs) >= 2:
+            with contextlib.suppress(Exception):
+                kit.consistency = await check_consistency(
+                    approved_pairs, dna, run_dir=run_dir, settings=s, client=sc,
+                )
+    finally:
+        if owns_stepfun:
+            await sc.aclose()
+        if owns_ollama:
+            await oc.aclose()
+        if owns_comfyui:
+            await cc.aclose()
+        await nim.aclose()
+        if orchestrator is None:
+            await orch.aclose()
+
+    log.info("iterate.done", status=kit.status, total_latency_s=round(total_latency, 1),
+             approved=sum(1 for a in kit_assets if a.status == "approved"))
+    return kit

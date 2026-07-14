@@ -26,8 +26,10 @@ design partner" story.
 - `tests/test_runner.py`: iterate loop unit test.
 
 ## Acceptance
-- [ ] User can send a tweak message after receiving a kit → bot re-renders
-- [ ] Only changed assets are re-rendered (others reused from prev run)
-- [ ] VLM re-analyzes current assets with the feedback
-- [ ] Works via Telegram + gallery UI
-- [ ] All tests pass
+- [x] User can send a tweak message after receiving a kit → bot re-renders
+- [x] Only changed assets are re-rendered (others reused from prev run)
+- [x] VLM re-analyzes current assets with the feedback (via Art Director rewrite)
+- [x] Works via Telegram (skill helper auto-detects text-only → iterate) + gallery UI
+- [x] All tests pass (89 passing)
+
+## Status: ✅ done

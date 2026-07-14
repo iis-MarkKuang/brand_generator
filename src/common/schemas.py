@@ -135,6 +135,14 @@ class RunInput(BaseModel):
         return v
 
 
+class IterateRequest(BaseModel):
+    """CP-019: conversational design iteration request."""
+    model_config = ConfigDict(extra="forbid")
+
+    feedback: str = Field(min_length=1, max_length=2000)
+    assets: list[str] = Field(default_factory=list)  # empty = re-render all
+
+
 class KitAsset(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
