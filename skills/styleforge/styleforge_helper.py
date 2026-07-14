@@ -172,6 +172,103 @@ def fetch_brand_guide(run_id: str) -> str:
         return ""
 
 
+# ---------------------------------------------------------------------------
+# Telegram direct delivery (optional — only if bot token is in env)
+# ---------------------------------------------------------------------------
+TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TG_CHAT = os.environ.get("STYLEFORGE_TG_CHAT", "") or os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS", "").strip().split(",")[0].strip()
+TG_API = "https://api.telegram.org"
+
+
+def _tg_post(endpoint: str, fields: list[tuple[str, str]], photo: bytes | None = None,
+             photo_fname: str = "asset.png") -> dict:
+    """POST to Telegram Bot API (stdlib multipart). Returns parsed JSON."""
+    boundary = f"----tg{uuid4().hex}"
+    buf = io.BytesIO()
+    for key, val in fields:
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
+        buf.write(f"{val}\r\n".encode())
+    if photo is not None:
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="photo"; filename="{photo_fname}"\r\n'.encode())
+        buf.write(b"Content-Type: image/png\r\n\r\n")
+        buf.write(photo)
+        buf.write(b"\r\n")
+    buf.write(f"--{boundary}--\r\n".encode())
+    body = buf.getvalue()
+    req = urllib.request.Request(
+        f"{TG_API}/bot{TG_TOKEN}/{endpoint}",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def send_telegram_text(text: str) -> None:
+    if not TG_TOKEN or not TG_CHAT:
+        return
+    try:
+        _tg_post("sendMessage", [("chat_id", TG_CHAT), ("text", text[:4096])])
+        log(f"telegram text sent ({len(text)} chars)")
+    except Exception as exc:  # noqa: BLE001
+        log(f"telegram text send failed: {exc}")
+
+
+def send_telegram_photo(image: bytes, caption: str) -> None:
+    if not TG_TOKEN or not TG_CHAT:
+        return
+    try:
+        _tg_post("sendPhoto", [("chat_id", TG_CHAT), ("caption", caption[:1024])],
+                 photo=image, photo_fname="brand_asset.png")
+        log(f"telegram photo sent ({len(image)} bytes, caption {len(caption)} chars)")
+    except Exception as exc:  # noqa: BLE001
+        log(f"telegram photo send failed: {exc}")
+
+
+def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide: str) -> None:
+    """Send each approved asset as a Telegram photo + a summary text message."""
+    if not TG_TOKEN or not TG_CHAT:
+        log("telegram delivery skipped (no TELEGRAM_BOT_TOKEN / chat id)")
+        return
+    labels = {"logo": "Logo", "social_square": "Social Square", "hero_banner": "Hero Banner"}
+    sent = 0
+    for a in approved:
+        aid = str(a.get("id", "")).strip()
+        if not aid:
+            continue
+        try:
+            png = download_bytes(f"{API}/api/runs/{run_id}/kit/{aid}.png")
+            label = labels.get(aid, aid)
+            score = a.get("score", "?")
+            caption = f"🎨 {label} (score: {score}/100) — approved by Critic"
+            send_telegram_photo(png, caption)
+            sent += 1
+        except Exception as exc:  # noqa: BLE001
+            log(f"could not send {aid} to telegram: {exc}")
+
+    # Summary message with palette + brand guide excerpt
+    palette_parts = []
+    for p in palette[:4]:
+        if isinstance(p, dict):
+            palette_parts.append(f"{p.get('name', '')} {p.get('hex', '')}")
+        else:
+            palette_parts.append(str(p))
+    palette_str = " / ".join(palette_parts)
+    guide_excerpt = brand_guide[:800] if brand_guide else ""
+    summary = (
+        f"✅ StyleForge Brand Kit Complete\n"
+        f"{sent} assets delivered\n\n"
+        f"Palette: {palette_str}\n\n"
+    )
+    if guide_excerpt:
+        summary += f"Brand Guide (excerpt):\n{guide_excerpt}\n"
+    summary += f"\nRun ID: {run_id}"
+    send_telegram_text(summary)
+
+
 def main() -> int:
     brief = sys.argv[1].strip() if len(sys.argv) >= 2 and sys.argv[1].strip() else ""
     assets = sys.argv[2].strip() if len(sys.argv) >= 3 and sys.argv[2].strip() else DEFAULT_ASSETS
@@ -241,6 +338,9 @@ def main() -> int:
         gp = publish("brand_guide.md", run_id, guide_text.encode("utf-8"))
         guide_path = str(gp)
         log(f"published brand_guide.md -> {gp}")
+
+    # ---- deliver assets + descriptions directly to Telegram (if token set) ----
+    deliver_to_telegram(approved, run_id, palette, guide_text)
 
     # ---- stdout: only MEDIA: lines + Brand guide: line (per SKILL.md rules) ----
     for line in media_lines:
