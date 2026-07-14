@@ -55,6 +55,7 @@ _SSE_ALLOW = {
     "vram_before_gb",
     "vram_after_gb",
     "latency_s",
+    "backend",
     "event",
     "asset_id",
     "attempt",

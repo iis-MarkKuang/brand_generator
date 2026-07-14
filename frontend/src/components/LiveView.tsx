@@ -7,6 +7,7 @@ import { useRunSse } from "../hooks/useRunSse";
 import AssetTile from "./AssetTile";
 import DnaCard from "./DnaCard";
 import LogPanel from "./LogPanel";
+import VramDashboard from "./VramDashboard";
 
 interface LiveAsset {
   type: AssetType;
@@ -150,6 +151,7 @@ export default function LiveView() {
         </div>
 
         <div className="space-y-4">
+          <VramDashboard events={events} />
           <LogPanel events={events} />
           {opt && (
             <div className="bg-panel border border-edge rounded-xl p-4 grid grid-cols-3 gap-3 text-center">

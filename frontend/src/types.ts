@@ -84,6 +84,7 @@ export interface SseOrchestratorEvent {
   vram_before_gb?: number;
   vram_after_gb?: number;
   latency_s?: number;
+  backend?: string;
 }
 
 export interface SseAssetEvent {
