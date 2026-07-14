@@ -88,14 +88,14 @@ async def test_critic_pass_boundary(fake_settings, tmp_path) -> None:
     c_pass = _client(
         lambda r: httpx.Response(200, json=_completion(json.dumps(_scores(70)))), fake_settings
     )
-    res70 = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, client=c_pass)
+    res70 = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c_pass)
     assert res70.pass_ is True and res70.score == 70
     await c_pass.aclose()
 
     c_fail = _client(
         lambda r: httpx.Response(200, json=_completion(json.dumps(_scores(69)))), fake_settings
     )
-    res69 = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, client=c_fail)
+    res69 = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c_fail)
     assert res69.pass_ is False and res69.score == 69
     # critic file written and round-trips with the "pass" alias
     rt = CriticResult.model_validate_json(run.critic_path("logo", 1).read_text())
@@ -115,7 +115,7 @@ async def test_critic_recheck_uses_low_detail(fake_settings, tmp_path) -> None:
     png = _png(tmp_path)
     run = RunDir(tmp_path / "runs", "test-critic-002").ensure()
     c = _client(handler, fake_settings)
-    await critic_asset(png, SPEC, DNA, run_dir=run, attempt=2, client=c)
+    await critic_asset(png, SPEC, DNA, run_dir=run, attempt=2, settings=fake_settings, client=c)
     # find the image_url part in the captured user message
     user = captured["messages"][-1]["content"]
     img_part = next(p for p in user if p.get("type") == "image_url")
@@ -135,7 +135,7 @@ async def test_critic_repair_path(fake_settings, tmp_path) -> None:
     png = _png(tmp_path)
     run = RunDir(tmp_path / "runs", "test-critic-003").ensure()
     c = _client(handler, fake_settings)
-    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, client=c)
+    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c)
     assert calls["n"] == 2
     assert res.score == 75 and res.pass_ is True
     await c.aclose()
@@ -149,7 +149,7 @@ async def test_critic_feedback_nonempty_when_fail(fake_settings, tmp_path) -> No
     c_empty = _client(
         lambda r: httpx.Response(200, json=_completion(json.dumps(_scores(50, "")))), fake_settings
     )
-    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, client=c_empty)
+    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c_empty)
     assert res.pass_ is False
     assert res.feedback.strip() != ""  # fallback enforced
     await c_empty.aclose()
@@ -164,7 +164,7 @@ async def test_critic_structured_failure_never_crashes(fake_settings, tmp_path) 
     png = _png(tmp_path)
     run = RunDir(tmp_path / "runs", "test-critic-005").ensure()
     c = _client(handler, fake_settings)
-    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, client=c)
+    res = await critic_asset(png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c)
     assert res.pass_ is False
     assert res.score == 0
     assert res.feedback.startswith("critic_failed")

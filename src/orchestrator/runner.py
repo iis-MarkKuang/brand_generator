@@ -22,6 +22,7 @@ import structlog
 from src.agents.art_director import plan_assets, rewrite_prompt
 from src.agents.assembler import assemble_kit
 from src.agents.brand_analyst import analyze_brand, brand_dna_cache_key
+from src.agents.consistency import check_consistency
 from src.agents.critic import critic_asset
 from src.agents.generator import generate_asset
 from src.common.comfyui import ComfyUIClient
@@ -194,6 +195,21 @@ async def run_pipeline(
         kit = await assemble_kit(
             run_dir, manifest, dna, kit_assets, total_latency_s=total_latency, stats=stats
         )
+
+        # 4b — CP-017: VLM cross-asset consistency check (2+ approved assets).
+        approved_pairs: list[tuple[str, str | Path]] = [
+            (a.id, run_dir.path / a.path)
+            for a in kit_assets
+            if a.status == "approved" and a.path
+        ]
+        if len(approved_pairs) >= 2:
+            try:
+                kit.consistency = await check_consistency(
+                    approved_pairs, dna, run_dir=run_dir, settings=s, client=sc,
+                )
+                log.info("runner.consistency", overall=kit.consistency.overall_score)
+            except Exception as exc:  # noqa: BLE001 — best-effort, never crash
+                log.warning("runner.consistency_skip", error=str(exc)[:120])
     finally:
         if owns_stepfun:
             await sc.aclose()

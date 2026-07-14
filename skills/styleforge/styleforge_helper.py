@@ -175,8 +175,8 @@ def fetch_brand_guide(run_id: str) -> str:
 # ---------------------------------------------------------------------------
 # Telegram direct delivery (optional — only if bot token is in env)
 # ---------------------------------------------------------------------------
-TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-TG_CHAT = os.environ.get("STYLEFORGE_TG_CHAT", "") or os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS", "").strip().split(",")[0].strip()
+TG_TOKEN = os.environ.get("STYLEFORGE_TG_TOKEN", "").strip()
+TG_CHAT = os.environ.get("STYLEFORGE_TG_CHAT", "").strip().split(",")[0].strip()
 TG_API = "https://api.telegram.org"
 
 
@@ -231,7 +231,7 @@ def send_telegram_photo(image: bytes, caption: str) -> None:
 def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide: str) -> None:
     """Send each approved asset as a Telegram photo + a summary text message."""
     if not TG_TOKEN or not TG_CHAT:
-        log("telegram delivery skipped (no TELEGRAM_BOT_TOKEN / chat id)")
+        log("telegram delivery skipped (no STYLEFORGE_TG_TOKEN / chat id)")
         return
     labels = {"logo": "Logo", "social_square": "Social Square", "hero_banner": "Hero Banner"}
     sent = 0

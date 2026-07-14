@@ -101,6 +101,9 @@ class CriticResult(BaseModel):
     legibility: float = Field(ge=0.0, le=1.0)
     on_brand: float = Field(ge=0.0, le=1.0)
     feedback: str = ""
+    # CP-017: deep VLM reasoning chain fields (populated in deep mode)
+    visual_description: str = ""
+    extracted_palette: list[str] = Field(default_factory=list)
 
 
 def _default_assets() -> list[AssetType]:
@@ -157,6 +160,25 @@ class OptimizationStats(BaseModel):
     routing_nim_count: int = 0
 
 
+class ConsistencyDimension(BaseModel):
+    """One dimension of cross-asset consistency (CP-017)."""
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: str  # e.g. "palette", "typography", "mood", "composition"
+    score: float = Field(ge=0.0, le=1.0)
+    notes: str = ""
+
+
+class ConsistencyMatrix(BaseModel):
+    """VLM cross-asset consistency check result (CP-017)."""
+    model_config = ConfigDict(extra="forbid")
+
+    overall_score: float = Field(ge=0.0, le=1.0)
+    dimensions: list[ConsistencyDimension] = Field(default_factory=list)
+    summary: str = ""
+    asset_ids: list[str] = Field(default_factory=list)
+
+
 class KitManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -170,6 +192,7 @@ class KitManifest(BaseModel):
     generated_at: datetime
     total_latency_s: int
     optimization_stats: OptimizationStats = Field(default_factory=OptimizationStats)
+    consistency: ConsistencyMatrix | None = None  # CP-017
 
 
 class OrchestratorEvent(BaseModel):

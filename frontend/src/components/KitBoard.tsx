@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { getBrandDna, getRun, kitFileUrl, kitZipUrl } from "../api";
 import AssetTile from "./AssetTile";
+import ConsistencyMatrixCard from "./ConsistencyMatrixCard";
 import PaletteStrip from "./PaletteStrip";
 
 export default function KitBoard() {
@@ -75,6 +76,12 @@ export default function KitBoard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
+        {manifest.consistency && (
+          <div className="lg:col-span-1">
+            <ConsistencyMatrixCard matrix={manifest.consistency} />
+          </div>
+        )}
+
         <div className="lg:col-span-2 bg-panel border border-edge rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs uppercase tracking-wider text-muted">

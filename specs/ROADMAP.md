@@ -37,8 +37,8 @@
 | CP-014 | [NeMo LoRA fine-tuning optimization leg](CP-014-nemo-lora.md) | 4 | CP-005 | ✅ done (Generator LoRA + plan; training deferred) |
 | CP-015 | [Tests + acceptance harness + golden run](CP-015-tests-golden.md) | 5 | CP-008 | ✅ done |
 | CP-016 | [Documentation, deployment guide, demo script](CP-016-documentation.md) | 5 | CP-011, CP-012 | ✅ done |
-| CP-017 | [VLM reasoning chain + consistency matrix](CP-017-vlm-reasoning-consistency.md) | 6 | CP-006, CP-008 | 🟡 in-progress |
-| CP-018 | [Real-time VRAM orchestration dashboard](CP-018-vram-dashboard.md) | 6 | CP-010, CP-011 | 🟡 in-progress |
+| CP-017 | [VLM reasoning chain + consistency matrix](CP-017-vlm-reasoning-consistency.md) | 6 | CP-006, CP-008 | ✅ done |
+| CP-018 | [Real-time VRAM orchestration dashboard](CP-018-vram-dashboard.md) | 6 | CP-010, CP-011 | ✅ done |
 | CP-019 | [Conversational design iteration via Telegram](CP-019-conversational-iteration.md) | 6 | CP-008, CP-012 | ⬜ ready |
 
 ## Dependency graph

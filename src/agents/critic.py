@@ -27,6 +27,18 @@ _log = structlog.get_logger(__name__)
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "critic.md"
 _FALLBACK_FEEDBACK = "Asset failed brand-fit review; revise palette hex and wordmark legibility."
 
+_DESCRIBE_PROMPT = (
+    "You are a visual design analyst. Describe what you see in this brand asset image. "
+    "Identify: dominant colors (with approximate hex if possible), typography style, "
+    "composition layout, mood/atmosphere, and any text legibility issues. "
+    "Be specific and concise (3-5 sentences)."
+)
+
+_EXTRACT_PALETTE_PROMPT = (
+    "Extract the 3-5 dominant colors from this image as hex codes. "
+    "Return ONLY a JSON array of hex strings, e.g. [\"#1A3C2A\", \"#C9A96E\"]."
+)
+
 
 def _load_system_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
@@ -110,6 +122,52 @@ def _persist(run_dir: RunDir, spec: AssetSpec, attempt: int, result: CriticResul
     )
 
 
+async def _deep_describe(sc: StepfunClient, data_url: str, effort: str, detail: str) -> str:
+    """Step 1 of deep reasoning: VLM describes what it sees in the image."""
+    try:
+        msg: list[dict[str, Any]] = [
+            {"role": "system", "content": _DESCRIBE_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this brand asset."},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
+        ]
+        resp = await sc.chat_vlm(msg, reasoning_effort=effort, image_detail=detail)
+        if isinstance(resp, dict):
+            return str(resp.get("description", resp.get("content", "")))[:500]
+        return str(resp)[:500]
+    except Exception:  # noqa: BLE001 — deep steps are best-effort
+        return ""
+
+
+async def _deep_extract_palette(sc: StepfunClient, data_url: str, effort: str, detail: str) -> list[str]:
+    """Step 2 of deep reasoning: VLM extracts dominant colors from the image."""
+    try:
+        msg: list[dict[str, Any]] = [
+            {"role": "system", "content": _EXTRACT_PALETTE_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Extract the palette."},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
+        ]
+        resp = await sc.chat_vlm(msg, reasoning_effort=effort, image_detail=detail)
+        if isinstance(resp, list):
+            return [str(c) for c in resp][:6]
+        if isinstance(resp, dict):
+            arr = resp.get("palette", resp.get("colors", []))
+            if isinstance(arr, list):
+                return [str(c) for c in arr][:6]
+        return []
+    except Exception:  # noqa: BLE001
+        return []
+
+
 async def critic_asset(
     png_path: str | Path,
     asset_spec: AssetSpec,
@@ -120,7 +178,12 @@ async def critic_asset(
     settings: Settings | None = None,
     client: StepfunClient | None = None,
 ) -> CriticResult:
-    """Score one rendered asset against the brand DNA. Never raises."""
+    """Score one rendered asset against the brand DNA. Never raises.
+
+    When ``settings.critic_deep_reasoning`` is True (CP-017), performs a 3-step
+    VLM reasoning chain before scoring: (1) describe the image, (2) extract the
+    rendered palette, (3) score with the description + palette as context.
+    """
     s = settings or get_settings()
     detail = s.vlm_image_detail_first if attempt < 2 else s.vlm_image_detail_recheck
     effort = "medium" if attempt < 2 else "low"
@@ -129,9 +192,29 @@ async def critic_asset(
 
     owns_client = client is None
     sc = client or StepfunClient(s)
+    visual_description = ""
+    extracted_palette: list[str] = []
     try:
         data_url = bytes_to_data_url(resize_for_vlm(Path(png_path), max_side=1024), "image/png")
+
+        # CP-017: deep reasoning chain (describe + extract palette) before scoring
+        if s.critic_deep_reasoning and attempt < 2:
+            visual_description = await _deep_describe(sc, data_url, effort, detail)
+            extracted_palette = await _deep_extract_palette(sc, data_url, effort, detail)
+            log.info("critic.deep_reasoning",
+                     desc_len=len(visual_description), palette=extracted_palette)
+
         messages = _build_messages(brand_dna, asset_spec, data_url)
+        # Enrich the scoring prompt with the deep reasoning context
+        if visual_description or extracted_palette:
+            enrichment = (
+                f"\n\nVLM visual analysis:\n"
+                f"Description: {visual_description}\n"
+                f"Extracted palette from render: {extracted_palette}\n"
+                f"Use these observations to ground your scoring."
+            )
+            messages[1]["content"][0]["text"] += enrichment
+
         data: dict[str, Any] | None = None
         try:
             data = await sc.chat_vlm(messages, reasoning_effort=effort, image_detail=detail)
@@ -162,6 +245,11 @@ async def critic_asset(
         if owns_client:
             await sc.aclose()
 
+    # Attach deep reasoning fields to the result
+    result.visual_description = visual_description
+    result.extracted_palette = extracted_palette
+
     _persist(run_dir, asset_spec, attempt, result)
-    log.info("critic.done", pass_=result.pass_, score=result.score, effort=effort, detail=detail)
+    log.info("critic.done", pass_=result.pass_, score=result.score, effort=effort, detail=detail,
+             deep=bool(visual_description))
     return result

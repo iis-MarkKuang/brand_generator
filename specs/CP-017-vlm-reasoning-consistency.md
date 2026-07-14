@@ -25,7 +25,9 @@ multiple generated images — a key differentiator for Stepfun VLM.
 - `tests/test_critic.py` + `tests/test_consistency.py`: unit tests.
 
 ## Acceptance
-- [ ] Deep critic produces 3-step reasoning per asset (visible in log)
-- [ ] Consistency matrix generated for multi-asset runs
-- [ ] Matrix visible in gallery UI as heatmap
-- [ ] All tests pass
+- [x] Deep critic produces 3-step reasoning per asset (visible in log)
+- [x] Consistency matrix generated for multi-asset runs
+- [x] Matrix visible in gallery UI as heatmap
+- [x] All tests pass (87 passing)
+
+## Status: ✅ done

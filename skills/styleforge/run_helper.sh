@@ -35,4 +35,13 @@ if [ -z "${STYLEFORGE_API:-}" ]; then
     fi
 fi
 
+# CP-017: map gateway Telegram env to generic helper env (keeps helper secrets-free).
+# The helper uses STYLEFORGE_TG_TOKEN / STYLEFORGE_TG_CHAT — never reads TELEGRAM_* directly.
+if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -z "${STYLEFORGE_TG_TOKEN:-}" ]; then
+    export STYLEFORGE_TG_TOKEN="$TELEGRAM_BOT_TOKEN"
+fi
+if [ -n "${TELEGRAM_ALLOWED_CHAT_IDS:-}" ] && [ -z "${STYLEFORGE_TG_CHAT:-}" ]; then
+    export STYLEFORGE_TG_CHAT="$TELEGRAM_ALLOWED_CHAT_IDS"
+fi
+
 exec python3 "$SCRIPT_DIR/styleforge_helper.py" "$@"

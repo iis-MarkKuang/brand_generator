@@ -46,6 +46,19 @@ export interface OptimizationStats {
   routing_nim_count: number;
 }
 
+export interface ConsistencyDimension {
+  dimension: string;
+  score: number;
+  notes: string;
+}
+
+export interface ConsistencyMatrix {
+  overall_score: number;
+  dimensions: ConsistencyDimension[];
+  summary: string;
+  asset_ids: string[];
+}
+
 export interface KitManifest {
   run_id: string;
   brand_name: string;
@@ -56,6 +69,7 @@ export interface KitManifest {
   generated_at: string;
   total_latency_s: number;
   optimization_stats: OptimizationStats;
+  consistency?: ConsistencyMatrix | null;
 }
 
 export interface RunState {

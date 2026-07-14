@@ -20,4 +20,5 @@ def fake_settings() -> Settings:
         nvidia_api_key="nv-test-key",
         hf_token="hf-test-key",
         telegram_bot_token="tg-test-key",
+        critic_deep_reasoning=False,  # CP-017: disable deep chain in unit tests
     )
