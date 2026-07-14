@@ -546,3 +546,58 @@ Verification: `wc -w docs/PROJECT.md` = 1074; `make check-secrets` passes across
 All 16 change packets (CP-001 … CP-016) are ✅ done. 84 tests (77 unit + 7 golden),
 87% coverage, ruff + mypy clean, CI workflow green, secrets-clean. The "Ten-Day Talk"
 journey is recorded in this file.
+
+## Day 10 — Wow factor: VLM depth + DGX Spark showcase + interactivity (CP-017/018/019)
+
+User feedback: "整个流程简单了一点，没有体现出 DGX Spark 以及 VLM 的牛逼之处" — the
+linear pipeline (brief → DNA → render → critique → kit) didn't showcase the hardware
+or VLM depth. Three "花活" added on top:
+
+### CP-018 — Real-time VRAM orchestration dashboard
+
+- New `VramDashboard.tsx` component in the gallery LiveView: animated 120 GB unified-
+  memory gauge, active model indicator (Ollama·Nemotron vs ComfyUI·FLUX, pulsing dot),
+  model swap timeline (color-coded with reason + VRAM + latency per swap), and counters
+  (swaps, Ollama loads, renders, VLM reasoning, NIM failovers).
+- Backend: `backend` field added to the SSE allowlist so the frontend sees which
+  reasoning backend served each event.
+- Makes the hidden DGX Spark advantage (120 GB unified memory enabling local 30B LLM
+  + FLUX swapping) visible to judges in real time.
+- Frontend: tsc + eslint + vite build all clean.
+
+### CP-017 — VLM reasoning chain + cross-asset consistency matrix
+
+- Critic enhanced with a 3-step VLM reasoning chain (describe image → extract rendered
+  palette → score with grounded context) when `critic_deep_reasoning` is enabled. The
+  description + extracted palette are persisted in the CriticResult and shown in the
+  gallery, showcasing the VLM's deep visual grounding beyond a single-pass score.
+- New `src/agents/consistency.py`: sends all approved asset images to the VLM in one
+  call and asks it to compare them for cross-asset brand coherence (palette /
+  typography / mood / composition). Returns a `ConsistencyMatrix` embedded in the
+  `KitManifest`.
+- Frontend: `ConsistencyMatrixCard.tsx` with per-dimension bars, overall score, VLM
+  assessment summary, and compared-asset chips — a heatmap-style visualization.
+- Skill helper: renamed `TELEGRAM_BOT_TOKEN` → `STYLEFORGE_TG_TOKEN` env var (mapped by
+  `run_helper.sh`) to keep the helper secrets-free. Secret scan test updated.
+- Tests: 87 passing (3 new consistency tests, critic tests updated to pass settings).
+
+### CP-019 — Conversational design iteration via Telegram + gallery
+
+- `iterate_run()` in runner: loads prev run's Brand DNA + asset manifest, uses the
+  user's feedback as the rewrite cue for the Art Director, re-renders only the affected
+  assets, copies unchanged approved assets, assembles a new kit + runs consistency check.
+- `POST /api/runs/{prev_id}/iterate` endpoint (single-flight, 404 on missing prev).
+- Skill helper: auto-detects text-only follow-up messages (no image) → finds the most
+  recent completed run → iterates with the user's text as feedback. SKILL.md documents
+  the iteration trigger.
+- Frontend: KitBoard "✨ Iterate" section with feedback input + submit button that
+  navigates to the new live run.
+- Tests: 89 passing (2 new iterate API tests: happy path + 404 on missing prev).
+
+### Final status after wow-factor phase
+
+All 19 change packets (CP-001 … CP-019) are ✅ done. 89 tests, ruff + mypy clean,
+frontend tsc + eslint + build clean. The pipeline now showcases: (1) DGX Spark's 120 GB
+unified-memory orchestration via a live VRAM dashboard, (2) VLM deep multi-image
+reasoning via the consistency matrix + 3-step critic chain, (3) interactive multi-turn
+agent loops via conversational Telegram iteration.
