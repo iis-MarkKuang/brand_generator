@@ -24,6 +24,7 @@ Environment:
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import mimetypes
@@ -51,6 +52,12 @@ POLL_TIMEOUT_S = 480  # 8 min ceiling for a chat turn
 
 def log(msg: str) -> None:
     print(f"[styleforge] {msg}", file=sys.stderr, flush=True)
+
+
+# Key milestone log — only for decisive events the user should see.
+# Regular log() is for debug noise; key_log() is for important progress updates.
+def key_log(msg: str) -> None:
+    print(f"[styleforge] ★ {msg}", file=sys.stderr, flush=True)
 
 
 def _http_json(req: urllib.request.Request, body: bytes | None = None) -> object:
@@ -163,7 +170,16 @@ def poll_until_assembled(run_id: str) -> dict:
             raise RuntimeError(f"unexpected run status response: {data!r}")
         stage = str(data.get("stage", ""))
         if stage != last_stage:
-            log(f"stage: {stage}")
+            # Only log key stage transitions (not every poll)
+            stage_labels = {
+                "analyzing": "🔍 Brand Analyst analyzing reference image…",
+                "planning": "🧠 Art Director planning asset manifest…",
+                "generating": "🎨 Generator rendering assets…",
+                "reasoning": "🔍 Critic reviewing rendered assets…",
+                "assembled": "📦 Assembling brand kit…",
+            }
+            if stage in stage_labels:
+                key_log(stage_labels[stage])
             last_stage = stage
         if stage == "assembled":
             man = data.get("manifest")
@@ -256,12 +272,51 @@ def send_telegram_photo(image: bytes, caption: str) -> None:
         log(f"telegram photo send failed: {exc}")
 
 
+def _strip_markdown(text: str) -> str:
+    """Convert markdown to plain readable text for Telegram."""
+    import re as _re
+    # Headers: ## Title → Title (remove #)
+    text = _re.sub(r"^#{1,6}\s*", "", text, flags=_re.MULTILINE)
+    # Bold: **text** → text
+    text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    # Italic: *text* → text
+    text = _re.sub(r"\*(.+?)\*", r"\1", text)
+    # Code: `text` → text
+    text = _re.sub(r"`(.+?)`", r"\1", text)
+    # Table rows: | a | b | → a: b
+    text = _re.sub(r"^\|(.+)\|$", lambda m: "  " + m.group(1).replace(" | ", " · "), text, flags=_re.MULTILINE)
+    # Table separator: |---|---| → remove
+    text = _re.sub(r"^\|[-:|\s]+\|$", "", text, flags=_re.MULTILINE)
+    # Bullet lists: - item → • item
+    text = _re.sub(r"^[\s]*[-*]\s+", "  • ", text, flags=_re.MULTILINE)
+    # Multiple blank lines → single
+    text = _re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _hex_to_emoji(hex_color: str) -> str:
+    """Pick a colored circle emoji closest to the hex color."""
+    h = hex_color.lstrip("#").upper()
+    dark = ("1", "2", "3", "4", "5")
+    mid = ("6", "7", "8", "9", "A", "B")
+    light = ("C", "D", "E", "F")
+    if h and h[0] in dark:
+        return "⚫"
+    if h and h[0] in light:
+        return "⚪"
+    if h and h[0] in mid:
+        return "🟡"
+    return "🔴"
+
+
 def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide: str) -> None:
-    """Send each approved asset as a Telegram photo + a summary text message."""
+    """Send each approved asset as a Telegram photo + a nicely formatted summary."""
     if not TG_TOKEN or not TG_CHAT:
         log("telegram delivery skipped (no STYLEFORGE_TG_TOKEN / chat id)")
         return
     labels = {"logo": "Logo", "social_square": "Social Square", "hero_banner": "Hero Banner"}
+
+    # Send each asset photo with a clean caption
     sent = 0
     for a in approved:
         aid = str(a.get("id", "")).strip()
@@ -270,30 +325,57 @@ def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide:
         try:
             png = download_bytes(f"{API}/api/runs/{run_id}/kit/{aid}.png")
             label = labels.get(aid, aid)
-            score = a.get("score", "?")
-            caption = f"🎨 {label} (score: {score}/100) — approved by Critic"
+            score = a.get("score", a.get("final_score", "?"))
+            caption = f"🎨 {label} — Critic score: {score}/100 ✅"
             send_telegram_photo(png, caption)
             sent += 1
         except Exception as exc:  # noqa: BLE001
             log(f"could not send {aid} to telegram: {exc}")
 
-    # Summary message with palette + brand guide excerpt
-    palette_parts = []
-    for p in palette[:4]:
-        if isinstance(p, dict):
-            palette_parts.append(f"{p.get('name', '')} {p.get('hex', '')}")
-        else:
-            palette_parts.append(str(p))
-    palette_str = " / ".join(palette_parts)
-    guide_excerpt = brand_guide[:800] if brand_guide else ""
-    summary = (
-        f"✅ StyleForge Brand Kit Complete\n"
-        f"{sent} assets delivered\n\n"
-        f"Palette: {palette_str}\n\n"
-    )
-    if guide_excerpt:
-        summary += f"Brand Guide (excerpt):\n{guide_excerpt}\n"
-    summary += f"\nRun ID: {run_id}"
+    # Build a nicely formatted summary
+    lines = []
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("✅ StyleForge 品牌包生成完成")
+    lines.append(f"📦 {sent} 项资产已交付")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("")
+
+    # Palette section with colored emoji
+    if palette:
+        lines.append("🎨 品牌色板:")
+        for p in palette[:5]:
+            if isinstance(p, dict):
+                name = p.get("name", "")
+                hex_val = p.get("hex", "")
+                rank = p.get("rank", "")
+                emoji = _hex_to_emoji(hex_val)
+                rank_label = {"primary": "主色", "accent": "强调色", "neutral": "中性色"}.get(rank, "")
+                lines.append(f"  {emoji} {name} {hex_val} ({rank_label})")
+            else:
+                lines.append(f"  ⚪ {p}")
+        lines.append("")
+
+    # Asset summary
+    lines.append("📋 资产清单:")
+    for a in approved:
+        aid = str(a.get("id", "")).strip()
+        label = labels.get(aid, aid)
+        score = a.get("score", a.get("final_score", "?"))
+        lines.append(f"  ✅ {label} — {score}/100")
+    lines.append("")
+
+    # Brand guide excerpt (stripped of markdown)
+    if brand_guide:
+        guide_text = _strip_markdown(brand_guide[:1200])
+        lines.append("📖 品牌指南 (摘要):")
+        lines.append(guide_text)
+        lines.append("")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"🆔 Run ID: {run_id}")
+    lines.append("💬 发送纯文字消息可继续微调设计")
+
+    summary = "\n".join(lines)
     send_telegram_text(summary)
 
 
@@ -339,20 +421,17 @@ def main() -> int:
     brand_name = derive_brand_name(brief)
     log(f"brand_name = {brand_name!r}, assets = {assets!r}, iterate={is_iterate}")
 
-    # Health-check the orchestrator (helpful, not fatal).
-    try:
-        h = _http_json(urllib.request.Request(f"{API}/api/health", method="GET"))
-        log(f"orchestrator health: {h}")
-    except Exception as exc:  # noqa: BLE001
-        log(f"orchestrator health check failed: {exc}")
+    # Health-check the orchestrator (quiet — not shown to user).
+    with contextlib.suppress(Exception):
+        _http_json(urllib.request.Request(f"{API}/api/health", method="GET"))
 
     if is_iterate:
-        log(f"POST /api/runs/{prev_id}/iterate …")
+        key_log(f"迭代模式：基于上一轮 {prev_id} 微调设计…")
         run_id = post_iterate(prev_id, brief)
     else:
-        log("POST /api/runs …")
+        key_log("开始生成品牌视觉识别包…")
         run_id = post_run(brief, image, brand_name, assets)
-    log(f"run_id = {run_id}, polling until assembled (~{POLL_TIMEOUT_S}s ceiling)")
+    key_log(f"Run {run_id} 已启动，等待流水线完成…")
 
     manifest = poll_until_assembled(run_id)
     status = manifest.get("status", "unknown")
@@ -361,6 +440,10 @@ def main() -> int:
     failed = [a for a in asset_rows if a.get("status") == "failed"]
     palette = manifest.get("palette", []) or []
     log(f"assembled: status={status}, approved={len(approved)}, failed={len(failed)}")
+    if approved:
+        key_log(f"✅ {len(approved)} 项资产通过 Critic 评审")
+    if failed:
+        key_log(f"⚠️ {len(failed)} 项资产未通过，已在打磨中")
 
     media_lines: list[str] = []
     for a in approved:
