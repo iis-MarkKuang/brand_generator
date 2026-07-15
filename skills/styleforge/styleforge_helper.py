@@ -74,14 +74,22 @@ def _http_json(req: urllib.request.Request, body: bytes | None = None) -> object
     return raw
 
 
-def latest_inbound_image() -> Path | None:
-    """Newest image in OpenClaw's inbound boundary (workshop convention)."""
+def latest_inbound_image(max_age_s: int = 300) -> Path | None:
+    """Newest image in OpenClaw's inbound boundary (workshop convention).
+
+    Only images modified within the last ``max_age_s`` seconds are considered,
+    so stale images from previous turns don't get reused on a fresh skill
+    invocation (which would turn a text-only iterate request into a new run).
+    """
     if not INBOUND_DIR or not INBOUND_DIR.is_dir():
         return None
+    cutoff = time.time() - max_age_s
     candidates = [
         p
         for p in INBOUND_DIR.iterdir()
-        if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+        if p.is_file()
+        and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+        and p.stat().st_mtime >= cutoff
     ]
     if not candidates:
         return None
@@ -379,6 +387,22 @@ def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide:
     send_telegram_text(summary)
 
 
+def _debounce_lock(cooldown_s: int = 75) -> bool:
+    """Prevent rapid-fire re-invocation (agent self-loop protection).
+
+    Returns True if we should PROCEED, False if a recent run is still in
+    flight / just finished and we should skip this invocation. Uses a
+    mtime-based stamp file under /tmp so it works across processes.
+    """
+    stamp = Path("/tmp/styleforge_helper_last_run.ts")
+    with contextlib.suppress(OSError):
+        if stamp.is_file() and (time.time() - stamp.stat().st_mtime) < cooldown_s:
+            return False
+    with contextlib.suppress(OSError):
+        stamp.write_text(str(time.time()))
+    return True
+
+
 def main() -> int:
     brief = sys.argv[1].strip() if len(sys.argv) >= 2 and sys.argv[1].strip() else ""
     assets = sys.argv[2].strip() if len(sys.argv) >= 3 and sys.argv[2].strip() else DEFAULT_ASSETS
@@ -389,6 +413,14 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    # Agent self-loop guard: if a run was started very recently, skip this
+    # invocation to avoid the bot spamming duplicate kits when the agent
+    # echoes its own output back as a new user message.
+    if not _debounce_lock():
+        log("skipped: another run was started < 75s ago (self-loop guard)")
+        print("⏳ 上一轮生成刚完成，请稍等片刻再发送新消息。", flush=True)
+        return 0
 
     log(f"OPENCLAW_HOME = {OPENCLAW_HOME or '<unset>'}")
     log(f"API           = {API}")
