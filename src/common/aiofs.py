@@ -8,9 +8,9 @@ the blocking call to a thread via :func:`asyncio.to_thread`.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
-
-PathLike = "str | Path"
+from typing import Any
 
 
 async def read_text(path: str | Path) -> str:
@@ -33,6 +33,6 @@ async def exists(path: str | Path) -> bool:
     return await asyncio.to_thread(lambda: Path(path).exists())
 
 
-async def to_thread(func, *args, **kwargs):
+async def to_thread[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Run a sync helper in a thread without blocking the event loop."""
     return await asyncio.to_thread(func, *args, **kwargs)
