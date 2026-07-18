@@ -21,6 +21,18 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from src.common.aiofs import (
+    exists as aio_exists,
+)
+from src.common.aiofs import (
+    read_text as aio_read_text,
+)
+from src.common.aiofs import (
+    to_thread,
+)
+from src.common.aiofs import (
+    write_text as aio_write_text,
+)
 from src.common.config import Settings, get_settings
 from src.common.ollama import OllamaClient
 from src.common.router import ReasonClient
@@ -110,15 +122,21 @@ DIRECTOR_TOOLS: list[dict[str, Any]] = [
 
 
 def brand_hash(dna: BrandDna) -> str:
-    return hashlib.sha1(dna.model_dump_json().encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha1(dna.model_dump_json().encode("utf-8"), usedforsecurity=False).hexdigest()[
+        :16
+    ]
 
 
 def _plan_cache_key(bd_hash: str, asset_types: Sequence[AssetType]) -> str:
-    return hashlib.sha1(f"{bd_hash}:{','.join(asset_types)}".encode()).hexdigest()
+    return hashlib.sha1(
+        f"{bd_hash}:{','.join(asset_types)}".encode(), usedforsecurity=False
+    ).hexdigest()
 
 
 def _seed_for(base_seed: int, bd_hash: str, asset_id: str) -> int:
-    h = hashlib.sha1(f"{base_seed}:{bd_hash}:{asset_id}".encode()).hexdigest()
+    h = hashlib.sha1(
+        f"{base_seed}:{bd_hash}:{asset_id}".encode(), usedforsecurity=False
+    ).hexdigest()
     return int(h[:8], 16) % 1_000_000
 
 
@@ -201,10 +219,10 @@ async def plan_assets(
     cdir = Path(cache_dir) if cache_dir is not None else _DEFAULT_CACHE_DIR
     cache_file = cdir / f"{_plan_cache_key(bd_hash, asset_types)}.json"
 
-    if cache_file.exists():
-        cached = AssetManifest.model_validate_json(cache_file.read_text(encoding="utf-8"))
+    if await aio_exists(cache_file):
+        cached = AssetManifest.model_validate_json(await aio_read_text(cache_file))
         manifest = cached.model_copy(update={"run_id": run_dir.run_id})
-        _persist(run_dir, manifest)
+        await to_thread(_persist, run_dir, manifest)
         log.info("art_director.plan.done", cache_hit=True, assets=len(manifest.assets))
         return manifest
 
@@ -212,7 +230,7 @@ async def plan_assets(
     owns_client = client is None
     oc: ReasonClient = client or OllamaClient(s)
     try:
-        messages = _build_plan_messages(brand_dna, asset_types)
+        messages = await to_thread(_build_plan_messages, brand_dna, asset_types)
         manifest = await _plan_with_repair(
             oc,
             s.ollama_reasoning_model,
@@ -227,9 +245,9 @@ async def plan_assets(
         if owns_client:
             await oc.aclose()
 
-    _persist(run_dir, manifest)
+    await to_thread(_persist, run_dir, manifest)
     cdir.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    await aio_write_text(cache_file, manifest.model_dump_json(indent=2))
     log.info("art_director.plan.done", cache_hit=False, assets=len(manifest.assets))
     return manifest
 
@@ -302,7 +320,7 @@ async def rewrite_prompt(
             '"negative_prompt": "<string>"}.'
         )
         messages = [
-            {"role": "system", "content": _load_system_prompt()},
+            {"role": "system", "content": await to_thread(_load_system_prompt)},
             {"role": "user", "content": user},
         ]
         content = await oc.chat(s.ollama_reasoning_model, messages, think=False)

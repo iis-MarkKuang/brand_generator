@@ -19,6 +19,8 @@ from typing import Any
 
 import structlog
 
+from src.common.aiofs import to_thread
+from src.common.aiofs import write_bytes as aio_write_bytes
 from src.common.comfyui import ComfyUIClient
 from src.common.config import Settings, get_settings
 from src.common.exceptions import ComfyUIError, CudaDirtyError
@@ -188,7 +190,8 @@ async def _render_once(
     cc = client or ComfyUIClient(settings)
     t0 = time.perf_counter()
     try:
-        wf = build_workflow(
+        wf = await to_thread(
+            build_workflow,
             asset_spec,
             attempt,
             steps,
@@ -205,7 +208,7 @@ async def _render_once(
         out = _extract_output(entry)
         png = await cc.fetch_image(out["filename"], out["subfolder"], out["type"])
         out_path = run_dir.asset_path(asset_spec.id, attempt)
-        out_path.write_bytes(png)
+        await aio_write_bytes(out_path, png)
         latency = time.perf_counter() - t0
         result = RenderResult(
             asset_id=asset_spec.id,
@@ -220,7 +223,7 @@ async def _render_once(
             latency_s=round(latency, 3),
             vram_free_mib=_vram_free_mib(),
         )
-        _write_render_meta(run_dir, asset_spec.id, attempt, result)
+        await to_thread(_write_render_meta, run_dir, asset_spec.id, attempt, result)
         _emit_media(str(out_path))
         _log.info(
             "generator.render.done",

@@ -15,6 +15,21 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from src.common.aiofs import (
+    exists as aio_exists,
+)
+from src.common.aiofs import (
+    read_bytes as aio_read_bytes,
+)
+from src.common.aiofs import (
+    read_text as aio_read_text,
+)
+from src.common.aiofs import (
+    to_thread,
+)
+from src.common.aiofs import (
+    write_text as aio_write_text,
+)
 from src.common.config import Settings, get_settings
 from src.common.runs import RunDir
 from src.common.schemas import BrandDna
@@ -33,7 +48,7 @@ def _load_system_prompt() -> str:
 
 
 def brand_dna_cache_key(brief: str, image_bytes: bytes) -> str:
-    return hashlib.sha1(brief.encode("utf-8") + image_bytes).hexdigest()
+    return hashlib.sha1(brief.encode("utf-8") + image_bytes, usedforsecurity=False).hexdigest()
 
 
 def _build_messages(brief: str, brand_name: str, image_data_url: str) -> list[dict[str, Any]]:
@@ -72,15 +87,15 @@ async def analyze_brand(
     """
     log = _log.bind(agent="brand_analyst", run_id=run_dir.run_id, brand_name=brand_name)
     image_path = Path(image)
-    image_bytes = image_path.read_bytes()
+    image_bytes = await aio_read_bytes(image_path)
     key = brand_dna_cache_key(brief, image_bytes)
     cdir = Path(cache_dir) if cache_dir is not None else _DEFAULT_CACHE_DIR
     cache_file = cdir / f"{key}.json"
 
     # --- Cache hit (O4) ---
-    if cache_file.exists():
-        dna = BrandDna.model_validate_json(cache_file.read_text(encoding="utf-8"))
-        _persist(run_dir, dna)
+    if await aio_exists(cache_file):
+        dna = BrandDna.model_validate_json(await aio_read_text(cache_file))
+        await to_thread(_persist, run_dir, dna)
         log.info("brand_analyst.done", cache_hit=True, palette=len(dna.palette))
         return dna
 
@@ -89,7 +104,7 @@ async def analyze_brand(
     sc = client or StepfunClient(settings or get_settings())
     try:
         data_url = bytes_to_data_url(resize_for_vlm(image_path, max_side=1024), "image/png")
-        messages = _build_messages(brief, brand_name, data_url)
+        messages = await to_thread(_build_messages, brief, brand_name, data_url)
 
         data = await sc.chat_vlm(messages, reasoning_effort="high", image_detail="high")
         data["brand_name"] = brand_name  # guarantee consistency with the caller
@@ -114,9 +129,9 @@ async def analyze_brand(
         if owns_client:
             await sc.aclose()
 
-    _persist(run_dir, dna)
+    await to_thread(_persist, run_dir, dna)
     cdir.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(dna.model_dump_json(indent=2), encoding="utf-8")
+    await aio_write_text(cache_file, dna.model_dump_json(indent=2))
     log.info(
         "brand_analyst.done",
         cache_hit=False,

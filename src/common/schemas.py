@@ -144,6 +144,15 @@ class IterateRequest(BaseModel):
     assets: list[str] = Field(default_factory=list)  # empty = re-render all
 
 
+class HealthResponse(BaseModel):
+    """Health-check response with dependency probe results."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    deps: dict[str, bool]
+
+
 class KitAsset(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

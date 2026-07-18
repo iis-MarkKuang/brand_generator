@@ -19,6 +19,7 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from src.common.aiofs import write_text as aio_write_text
 from src.common.config import Settings, get_settings
 from src.common.exceptions import VlmJsonError
 from src.common.runs import RunDir
@@ -136,7 +137,9 @@ async def check_consistency(
                 data_url = bytes_to_data_url(resize_for_vlm(Path(png), max_side=768), "image/png")
                 asset_images.append((aid, data_url))
             except Exception as exc:  # noqa: BLE001
-                log.warning("consistency.image_skip", asset_id=aid, error=str(exc)[:120])
+                log.warning(
+                    "consistency.image_skip", asset_id=aid, error=str(exc)[:120], exc_info=True
+                )
 
         if len(asset_images) < 2:
             return _fallback_matrix([a[0] for a in approved_assets], "not enough loadable images")
@@ -174,7 +177,7 @@ async def check_consistency(
 
     # Persist
     out = run_dir.path / "consistency_matrix.json"
-    out.write_text(matrix.model_dump_json(indent=2), encoding="utf-8")
+    await aio_write_text(out, matrix.model_dump_json(indent=2))
 
     log.info("consistency.done", overall=matrix.overall_score, dims=len(matrix.dimensions))
     return matrix

@@ -15,6 +15,7 @@ from typing import Any
 import structlog
 from pydantic import ValidationError
 
+from src.common.aiofs import to_thread
 from src.common.config import Settings, get_settings
 from src.common.exceptions import VlmJsonError
 from src.common.runs import RunDir
@@ -139,7 +140,8 @@ async def _deep_describe(sc: StepfunClient, data_url: str, effort: str, detail: 
         if isinstance(resp, dict):
             return str(resp.get("description", resp.get("content", "")))[:500]
         return str(resp)[:500]
-    except Exception:  # noqa: BLE001 — deep steps are best-effort
+    except Exception as exc:  # noqa: BLE001 — deep steps are best-effort
+        _log.debug("critic.deep_describe_failed", error=str(exc)[:120])
         return ""
 
 
@@ -166,7 +168,8 @@ async def _deep_extract_palette(
             if isinstance(arr, list):
                 return [str(c) for c in arr][:6]
         return []
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — deep steps are best-effort
+        _log.debug("critic.deep_palette_failed", error=str(exc)[:120])
         return []
 
 
@@ -207,7 +210,7 @@ async def critic_asset(
                 "critic.deep_reasoning", desc_len=len(visual_description), palette=extracted_palette
             )
 
-        messages = _build_messages(brand_dna, asset_spec, data_url)
+        messages = await to_thread(_build_messages, brand_dna, asset_spec, data_url)
         # Enrich the scoring prompt with the deep reasoning context
         if visual_description or extracted_palette:
             enrichment = (
@@ -252,7 +255,7 @@ async def critic_asset(
     result.visual_description = visual_description
     result.extracted_palette = extracted_palette
 
-    _persist(run_dir, asset_spec, attempt, result)
+    await to_thread(_persist, run_dir, asset_spec, attempt, result)
     log.info(
         "critic.done",
         pass_=result.pass_,

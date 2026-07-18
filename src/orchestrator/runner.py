@@ -25,6 +25,9 @@ from src.agents.brand_analyst import analyze_brand, brand_dna_cache_key
 from src.agents.consistency import check_consistency
 from src.agents.critic import critic_asset
 from src.agents.generator import generate_asset
+from src.common.aiofs import read_text as aio_read_text
+from src.common.aiofs import to_thread
+from src.common.aiofs import write_text as aio_write_text
 from src.common.comfyui import ComfyUIClient
 from src.common.config import Settings, get_settings
 from src.common.nvidia_nim import NimClient
@@ -118,7 +121,7 @@ async def run_pipeline(
 
     stats = OptimizationStats()
     kit_assets: list[KitAsset] = []
-    dna_cache_hit = _check_cache_hit(run_input.brief, run_input.reference_image)
+    dna_cache_hit = await to_thread(_check_cache_hit, run_input.brief, run_input.reference_image)
     stats.brand_dna_cache_hit = dna_cache_hit
     dna: BrandDna | None = None
     manifest: AssetManifest | None = None
@@ -193,7 +196,8 @@ async def run_pipeline(
         # 4 — Assemble the kit (always reached on normal/cap/timeout/cancel paths).
         total_latency = time.perf_counter() - t0
         stats.vram_swaps = sum(1 for e in orch.events if e.action.startswith("request_vram:"))
-        assert dna is not None and manifest is not None
+        if dna is None or manifest is None:
+            raise RuntimeError("run_pipeline: dna/manifest missing before assemble_kit")
         kit = await assemble_kit(
             run_dir, manifest, dna, kit_assets, total_latency_s=total_latency, stats=stats
         )
@@ -213,7 +217,7 @@ async def run_pipeline(
                 )
                 log.info("runner.consistency", overall=kit.consistency.overall_score)
             except Exception as exc:  # noqa: BLE001 — best-effort, never crash
-                log.warning("runner.consistency_skip", error=str(exc)[:120])
+                log.warning("runner.consistency_skip", error=str(exc)[:120], exc_info=True)
     finally:
         if owns_stepfun:
             await sc.aclose()
@@ -351,11 +355,9 @@ async def iterate_run(
             f"previous run {prev_run_id} missing brand_dna.json / asset_manifest.json / kit_manifest.json"
         )
 
-    dna = BrandDna.model_validate_json(dna_path.read_text(encoding="utf-8"))
-    prev_asset_manifest = AssetManifest.model_validate_json(
-        manifest_path.read_text(encoding="utf-8")
-    )
-    prev_kit = KitManifest.model_validate_json(kit_manifest_path.read_text(encoding="utf-8"))
+    dna = BrandDna.model_validate_json(await aio_read_text(dna_path))
+    prev_asset_manifest = AssetManifest.model_validate_json(await aio_read_text(manifest_path))
+    prev_kit = KitManifest.model_validate_json(await aio_read_text(kit_manifest_path))
 
     # Map asset_id → prev KitAsset (to know which were approved)
     prev_kit_map = {a.id: a for a in prev_kit.assets}
@@ -452,7 +454,7 @@ async def iterate_run(
             brand_dna_ref="brand_dna.json",
             assets=new_specs,
         )
-        run_dir.manifest_path().write_text(new_manifest.model_dump_json(indent=2), encoding="utf-8")
+        await aio_write_text(run_dir.manifest_path(), new_manifest.model_dump_json(indent=2))
 
         # Assemble the new kit
         total_latency = time.perf_counter() - t0

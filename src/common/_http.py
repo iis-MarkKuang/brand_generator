@@ -66,8 +66,9 @@ async def retry_transient(
                 continue
             raise
     # Unreachable: the loop either returns or raises on the final attempt.
-    assert last_exc is not None
-    raise last_exc  # pragma: no cover
+    if last_exc is not None:
+        raise last_exc  # pragma: no cover
+    raise RuntimeError("retry_transient: exhausted retries with no exception captured")
 
 
 def json_body(resp: httpx.Response) -> dict[str, Any]:

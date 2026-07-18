@@ -40,7 +40,7 @@ from PIL import Image, UnidentifiedImageError
 
 from src.common.config import Settings, get_settings
 from src.common.runs import RunDir, new_run_id
-from src.common.schemas import AssetType, IterateRequest, RunInput, RunOptions
+from src.common.schemas import AssetType, HealthResponse, IterateRequest, RunInput, RunOptions
 from src.orchestrator.runner import iterate_run, run_pipeline
 
 __all__ = ["create_app"]
@@ -97,12 +97,13 @@ def create_app(
         return RunDir(runs_root, run_id)
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/health")
+    @app.get("/api/health", tags=["health"], response_model=HealthResponse)
     async def health() -> dict[str, Any]:
+        """Liveness probe — reports orchestrator status and dependency health."""
         return {"status": "ok", "deps": await _probe_deps(s)}
 
     # ------------------------------------------------------------------ #
-    @app.post("/api/runs")
+    @app.post("/api/runs", tags=["runs"])
     async def start_run(
         brief: Annotated[str, Form(...)],
         image: Annotated[UploadFile, File(...)],
@@ -112,7 +113,7 @@ def create_app(
         ] = "logo,hero_banner,social_square,product_mockup,business_card",
         max_retries: Annotated[int, Form(...)] = 1,
     ) -> JSONResponse:
-        # single-flight on the GB10
+        """Start a new brand-kit generation run (multipart upload). Returns 202 + run_id."""
         active = [rid for rid, t in reg.runs.items() if not t.done()]
         if active:
             raise HTTPException(status_code=409, detail={"active_run_id": active[0]})
@@ -161,7 +162,7 @@ def create_app(
         return JSONResponse({"run_id": run_id}, status_code=202)
 
     # ------------------------------------------------------------------ #
-    @app.post("/api/runs/{prev_run_id}/iterate")
+    @app.post("/api/runs/{prev_run_id}/iterate", tags=["runs"])
     async def iterate_prev_run(
         prev_run_id: str,
         body: IterateRequest,
@@ -198,8 +199,9 @@ def create_app(
         return JSONResponse({"run_id": new_id, "prev_run_id": prev_run_id}, status_code=202)
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs")
+    @app.get("/api/runs", tags=["runs"])
     async def list_runs() -> dict[str, Any]:
+        """List all runs (newest-first) with their assembly status."""
         root = Path(runs_root).resolve()
         if not root.exists():
             return {"runs": []}
@@ -213,8 +215,9 @@ def create_app(
         return {"runs": out}
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}")
+    @app.get("/api/runs/{run_id}", tags=["runs"])
     async def get_run(run_id: str) -> dict[str, Any]:
+        """Get a run's current stage and manifest (if assembled)."""
         rd = _run_dir(run_id)
         if not rd.path.exists():
             raise HTTPException(status_code=404, detail="run not found")
@@ -224,8 +227,9 @@ def create_app(
         return {"run_id": run_id, "stage": _stage(rd, reg.runs.get(run_id)), "manifest": manifest}
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/brand_dna")
+    @app.get("/api/runs/{run_id}/brand_dna", tags=["runs"])
     async def brand_dna(run_id: str) -> JSONResponse:
+        """Serve the extracted brand DNA JSON for a run."""
         rd = _run_dir(run_id)
         p = rd.brand_dna_path()
         if not p.exists():
@@ -233,8 +237,9 @@ def create_app(
         return JSONResponse(json.loads(p.read_text()))
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/events")
+    @app.get("/api/runs/{run_id}/events", tags=["runs"])
     async def events(run_id: str, request: Request) -> StreamingResponse:
+        """SSE stream of orchestrator/asset events for a run (real-time progress)."""
         rd = _run_dir(run_id)
 
         async def gen() -> Any:
@@ -264,8 +269,9 @@ def create_app(
         )
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/assets/{name}")
+    @app.get("/api/runs/{run_id}/assets/{name}", tags=["runs"])
     async def serve_asset(run_id: str, name: str) -> FileResponse:
+        """Serve a rendered asset PNG from a run's assets/ directory."""
         rd = _run_dir(run_id)
         if not re.fullmatch(r"[A-Za-z0-9_]+\.(png|md|json)", name):
             raise HTTPException(status_code=400, detail="invalid asset name")
@@ -275,8 +281,9 @@ def create_app(
         return FileResponse(p, media_type="image/png")
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/kit/{name}")
+    @app.get("/api/runs/{run_id}/kit/{name}", tags=["runs"])
     async def serve_kit_file(run_id: str, name: str) -> FileResponse:
+        """Serve a file from a run's assembled brand_kit/ directory."""
         rd = _run_dir(run_id)
         if not re.fullmatch(r"[A-Za-z0-9_]+\.(png|md|json)", name):
             raise HTTPException(status_code=400, detail="invalid kit file name")
@@ -291,8 +298,9 @@ def create_app(
         return FileResponse(p, media_type=media)
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/brand_guide")
+    @app.get("/api/runs/{run_id}/brand_guide", tags=["runs"])
     async def brand_guide(run_id: str) -> FileResponse:
+        """Serve the assembled brand guide (markdown) for a run."""
         rd = _run_dir(run_id)
         p = rd.kit_asset_path("brand_guide.md")
         if not p.exists():
@@ -300,8 +308,9 @@ def create_app(
         return FileResponse(p, media_type="text/markdown; charset=utf-8")
 
     # ------------------------------------------------------------------ #
-    @app.get("/api/runs/{run_id}/kit.zip")
+    @app.get("/api/runs/{run_id}/kit.zip", tags=["runs"])
     async def kit_zip(run_id: str) -> StreamingResponse:
+        """Download the entire brand kit as a ZIP archive."""
         rd = _run_dir(run_id)
         if not rd.brand_kit.exists():
             raise HTTPException(status_code=404, detail="kit not ready")

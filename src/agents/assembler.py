@@ -15,6 +15,8 @@ from typing import Literal
 
 import structlog
 
+from src.common.aiofs import to_thread
+from src.common.aiofs import write_text as aio_write_text
 from src.common.runs import RunDir
 from src.common.schemas import (
     AssetManifest,
@@ -82,11 +84,11 @@ async def assemble_kit(
             src = Path(ka.path)
             if src.exists():
                 dst = run_dir.kit_asset_path(f"{ka.id}.png")
-                shutil.copyfile(src, dst)
+                await to_thread(shutil.copyfile, src, dst)
                 ka.path = f"brand_kit/{ka.id}.png"
 
     guide_path = run_dir.kit_asset_path("brand_guide.md")
-    guide_path.write_text(render_brand_guide(brand_dna, kit_assets), encoding="utf-8")
+    await aio_write_text(guide_path, render_brand_guide(brand_dna, kit_assets))
 
     status: Literal["complete", "partial"] = (
         "complete" if kit_assets and all(a.status == "approved" for a in kit_assets) else "partial"
@@ -101,7 +103,7 @@ async def assemble_kit(
         total_latency_s=int(total_latency_s),
         optimization_stats=stats,
     )
-    run_dir.kit_manifest_path().write_text(kit.model_dump_json(indent=2), encoding="utf-8")
+    await aio_write_text(run_dir.kit_manifest_path(), kit.model_dump_json(indent=2))
     _log.info(
         "assembler.done",
         run_id=run_dir.run_id,

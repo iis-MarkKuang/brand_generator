@@ -135,8 +135,8 @@ class OllamaClient:
                         and parts[1] not in ("", "[N/A]")
                     ):
                         total, free = int(parts[0]), int(parts[1])
-            except (ValueError, OSError):
-                pass
+            except (ValueError, OSError) as exc:
+                _log.debug("ollama.gpu_probe_failed", error=str(exc)[:120])
         return {
             "total_mib": total,
             "free_mib": free,

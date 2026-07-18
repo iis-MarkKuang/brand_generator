@@ -22,6 +22,7 @@ from enum import StrEnum
 import structlog
 from pydantic import BaseModel
 
+from src.common.aiofs import to_thread
 from src.common.comfyui import ComfyUIClient
 from src.common.config import Settings, get_settings
 from src.common.ollama import OllamaClient
@@ -68,7 +69,7 @@ def cache_key(brief: str, image_bytes: bytes) -> str:
     """Brand-DNA cache key (O4) — same algorithm as ``brand_analyst.brand_dna_cache_key``."""
     import hashlib
 
-    return hashlib.sha1(brief.encode("utf-8") + image_bytes).hexdigest()
+    return hashlib.sha1(brief.encode("utf-8") + image_bytes, usedforsecurity=False).hexdigest()
 
 
 class ModelOrchestrator:
@@ -157,7 +158,8 @@ class ModelOrchestrator:
             unloaded=unloaded,
             reason=block_reason or reason,
         )
-        self._record(
+        await to_thread(
+            self._record,
             action=f"request_vram:{target}",
             reason=block_reason or reason,
             vram_before_gb=before,
