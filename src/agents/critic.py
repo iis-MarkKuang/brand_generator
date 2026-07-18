@@ -36,7 +36,7 @@ _DESCRIBE_PROMPT = (
 
 _EXTRACT_PALETTE_PROMPT = (
     "Extract the 3-5 dominant colors from this image as hex codes. "
-    "Return ONLY a JSON array of hex strings, e.g. [\"#1A3C2A\", \"#C9A96E\"]."
+    'Return ONLY a JSON array of hex strings, e.g. ["#1A3C2A", "#C9A96E"].'
 )
 
 
@@ -143,7 +143,9 @@ async def _deep_describe(sc: StepfunClient, data_url: str, effort: str, detail: 
         return ""
 
 
-async def _deep_extract_palette(sc: StepfunClient, data_url: str, effort: str, detail: str) -> list[str]:
+async def _deep_extract_palette(
+    sc: StepfunClient, data_url: str, effort: str, detail: str
+) -> list[str]:
     """Step 2 of deep reasoning: VLM extracts dominant colors from the image."""
     try:
         msg: list[dict[str, Any]] = [
@@ -201,8 +203,9 @@ async def critic_asset(
         if s.critic_deep_reasoning and attempt < 2:
             visual_description = await _deep_describe(sc, data_url, effort, detail)
             extracted_palette = await _deep_extract_palette(sc, data_url, effort, detail)
-            log.info("critic.deep_reasoning",
-                     desc_len=len(visual_description), palette=extracted_palette)
+            log.info(
+                "critic.deep_reasoning", desc_len=len(visual_description), palette=extracted_palette
+            )
 
         messages = _build_messages(brand_dna, asset_spec, data_url)
         # Enrich the scoring prompt with the deep reasoning context
@@ -250,6 +253,12 @@ async def critic_asset(
     result.extracted_palette = extracted_palette
 
     _persist(run_dir, asset_spec, attempt, result)
-    log.info("critic.done", pass_=result.pass_, score=result.score, effort=effort, detail=detail,
-             deep=bool(visual_description))
+    log.info(
+        "critic.done",
+        pass_=result.pass_,
+        score=result.score,
+        effort=effort,
+        detail=detail,
+        deep=bool(visual_description),
+    )
     return result

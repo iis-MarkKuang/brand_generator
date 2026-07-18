@@ -64,7 +64,9 @@ _SSE_ALLOW = {
 }
 
 
-def create_app(settings: Settings | None = None, pipeline_fn: Any = None, iterate_fn: Any = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, pipeline_fn: Any = None, iterate_fn: Any = None
+) -> FastAPI:
     s = settings or get_settings()
     app = FastAPI(title="StyleForge", version="0.1.0")
     app.state.settings = s
@@ -190,7 +192,9 @@ def create_app(settings: Settings | None = None, pipeline_fn: Any = None, iterat
 
         task = asyncio.create_task(_iter_runner())
         reg.runs[new_id] = task
-        _log.info("api.iterate.started", new_id=new_id, prev=prev_run_id, feedback=body.feedback[:80])
+        _log.info(
+            "api.iterate.started", new_id=new_id, prev=prev_run_id, feedback=body.feedback[:80]
+        )
         return JSONResponse({"run_id": new_id, "prev_run_id": prev_run_id}, status_code=202)
 
     # ------------------------------------------------------------------ #

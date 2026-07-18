@@ -282,24 +282,54 @@ async def test_iterate_endpoint(tmp_path) -> None:
     prev_id = "test-prev-run"
     prev_rd = RunDir(Path(s.runs_root), prev_id).ensure()
     prev_rd.path.joinpath("brand_dna.json").write_text(
-        json.dumps({
-            "brand_name": "TestBrand", "palette": [{"name": "g", "hex": "#1A3C2A", "rank": "primary"}],
-            "mood": ["earthy"], "typography_class": "serif",
-            "typography_pairs": {"headline": "P", "body": "I"},
-            "visual_keywords": ["min"], "dos": [], "donts": [], "personality": "refined",
-        })
+        json.dumps(
+            {
+                "brand_name": "TestBrand",
+                "palette": [{"name": "g", "hex": "#1A3C2A", "rank": "primary"}],
+                "mood": ["earthy"],
+                "typography_class": "serif",
+                "typography_pairs": {"headline": "P", "body": "I"},
+                "visual_keywords": ["min"],
+                "dos": [],
+                "donts": [],
+                "personality": "refined",
+            }
+        )
     )
     prev_rd.manifest_path().write_text(
-        json.dumps({
-            "run_id": prev_id, "brand_dna_ref": "brand_dna.json",
-            "assets": [{"id": "logo", "type": "logo", "size": [1024, 1024],
-                        "flux_prompt": "a logo", "seed": 42}],
-        })
+        json.dumps(
+            {
+                "run_id": prev_id,
+                "brand_dna_ref": "brand_dna.json",
+                "assets": [
+                    {
+                        "id": "logo",
+                        "type": "logo",
+                        "size": [1024, 1024],
+                        "flux_prompt": "a logo",
+                        "seed": 42,
+                    }
+                ],
+            }
+        )
     )
     prev_kit = KitManifest(
-        run_id=prev_id, brand_name="TestBrand", status="complete",
-        assets=[KitAsset(id="logo", type="logo", path="brand_kit/logo.png", status="approved", final_score=80, error=None)],
-        palette=[], generated_at=datetime.now(UTC), total_latency_s=10,
+        run_id=prev_id,
+        brand_name="TestBrand",
+        status="complete",
+        assets=[
+            KitAsset(
+                id="logo",
+                type="logo",
+                path="brand_kit/logo.png",
+                status="approved",
+                final_score=80,
+                error=None,
+            )
+        ],
+        palette=[],
+        generated_at=datetime.now(UTC),
+        total_latency_s=10,
         optimization_stats=OptimizationStats(),
     )
     prev_rd.kit_manifest_path().write_text(prev_kit.model_dump_json(indent=2))
@@ -308,9 +338,22 @@ async def test_iterate_endpoint(tmp_path) -> None:
     async def _mock_iterate(prev_run_id, request, *, new_run_id, settings):
         rd = RunDir(settings.runs_root, new_run_id).ensure()
         kit = KitManifest(
-            run_id=new_run_id, brand_name="TestBrand", status="complete",
-            assets=[KitAsset(id="logo", type="logo", path="brand_kit/logo.png", status="approved", final_score=85, error=None)],
-            palette=[], generated_at=datetime.now(UTC), total_latency_s=5,
+            run_id=new_run_id,
+            brand_name="TestBrand",
+            status="complete",
+            assets=[
+                KitAsset(
+                    id="logo",
+                    type="logo",
+                    path="brand_kit/logo.png",
+                    status="approved",
+                    final_score=85,
+                    error=None,
+                )
+            ],
+            palette=[],
+            generated_at=datetime.now(UTC),
+            total_latency_s=5,
             optimization_stats=OptimizationStats(vram_swaps=1),
         )
         rd.kit_manifest_path().write_text(kit.model_dump_json(indent=2))

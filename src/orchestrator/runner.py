@@ -200,14 +200,16 @@ async def run_pipeline(
 
         # 4b — CP-017: VLM cross-asset consistency check (2+ approved assets).
         approved_pairs: list[tuple[str, str | Path]] = [
-            (a.id, run_dir.path / a.path)
-            for a in kit_assets
-            if a.status == "approved" and a.path
+            (a.id, run_dir.path / a.path) for a in kit_assets if a.status == "approved" and a.path
         ]
         if len(approved_pairs) >= 2:
             try:
                 kit.consistency = await check_consistency(
-                    approved_pairs, dna, run_dir=run_dir, settings=s, client=sc,
+                    approved_pairs,
+                    dna,
+                    run_dir=run_dir,
+                    settings=s,
+                    client=sc,
                 )
                 log.info("runner.consistency", overall=kit.consistency.overall_score)
             except Exception as exc:  # noqa: BLE001 — best-effort, never crash
@@ -350,7 +352,9 @@ async def iterate_run(
         )
 
     dna = BrandDna.model_validate_json(dna_path.read_text(encoding="utf-8"))
-    prev_asset_manifest = AssetManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+    prev_asset_manifest = AssetManifest.model_validate_json(
+        manifest_path.read_text(encoding="utf-8")
+    )
     prev_kit = KitManifest.model_validate_json(kit_manifest_path.read_text(encoding="utf-8"))
 
     # Map asset_id → prev KitAsset (to know which were approved)
@@ -392,7 +396,9 @@ async def iterate_run(
                 await orch.request_vram("ollama", reason=f"iterate:{aid}")
                 orch.begin_reasoning()
                 try:
-                    new_spec = await rewrite_prompt(orig_spec, request.feedback, settings=s, client=router)
+                    new_spec = await rewrite_prompt(
+                        orig_spec, request.feedback, settings=s, client=router
+                    )
                 finally:
                     orch.end_reasoning()
                 _bump_routing_stats(router, stats)
@@ -402,9 +408,22 @@ async def iterate_run(
                 # Render + critique (reuse _process_asset)
                 kit_assets.append(
                     await _process_asset(
-                        new_spec, dna, run_dir, s, orch, sc, router, cc, stats,
-                        1, cancel_event, t0,  # max_retries=1 in iteration mode
-                        generate_asset, critic_asset, rewrite_prompt, log,
+                        new_spec,
+                        dna,
+                        run_dir,
+                        s,
+                        orch,
+                        sc,
+                        router,
+                        cc,
+                        stats,
+                        1,
+                        cancel_event,
+                        t0,  # max_retries=1 in iteration mode
+                        generate_asset,
+                        critic_asset,
+                        rewrite_prompt,
+                        log,
                     )
                 )
             else:
@@ -414,14 +433,16 @@ async def iterate_run(
                     dst = run_dir.kit_asset_path(f"{aid}.png")
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(prev_png, dst)
-                    kit_assets.append(KitAsset(
-                        id=aid,
-                        type=orig_spec.type,
-                        path=f"brand_kit/{aid}.png",
-                        status="approved",
-                        final_score=prev_kit_map[aid].final_score,
-                        error=None,
-                    ))
+                    kit_assets.append(
+                        KitAsset(
+                            id=aid,
+                            type=orig_spec.type,
+                            path=f"brand_kit/{aid}.png",
+                            status="approved",
+                            final_score=prev_kit_map[aid].final_score,
+                            error=None,
+                        )
+                    )
                     new_specs.append(orig_spec)
                     log.info("iterate.reused", asset_id=aid)
 
@@ -442,14 +463,16 @@ async def iterate_run(
 
         # Consistency check
         approved_pairs: list[tuple[str, str | Path]] = [
-            (a.id, run_dir.path / a.path)
-            for a in kit_assets
-            if a.status == "approved" and a.path
+            (a.id, run_dir.path / a.path) for a in kit_assets if a.status == "approved" and a.path
         ]
         if len(approved_pairs) >= 2:
             with contextlib.suppress(Exception):
                 kit.consistency = await check_consistency(
-                    approved_pairs, dna, run_dir=run_dir, settings=s, client=sc,
+                    approved_pairs,
+                    dna,
+                    run_dir=run_dir,
+                    settings=s,
+                    client=sc,
                 )
     finally:
         if owns_stepfun:
@@ -462,6 +485,10 @@ async def iterate_run(
         if orchestrator is None:
             await orch.aclose()
 
-    log.info("iterate.done", status=kit.status, total_latency_s=round(total_latency, 1),
-             approved=sum(1 for a in kit_assets if a.status == "approved"))
+    log.info(
+        "iterate.done",
+        status=kit.status,
+        total_latency_s=round(total_latency, 1),
+        approved=sum(1 for a in kit_assets if a.status == "approved"),
+    )
     return kit

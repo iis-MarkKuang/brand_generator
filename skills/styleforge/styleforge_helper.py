@@ -144,7 +144,11 @@ def find_latest_assembled_run() -> str | None:
     """GET /api/runs → return the most recent run_id with status 'assembled'."""
     try:
         data = _http_json(urllib.request.Request(f"{API}/api/runs", method="GET"))
-        runs = data if isinstance(data, list) else (data.get("runs", []) if isinstance(data, dict) else [])
+        runs = (
+            data
+            if isinstance(data, list)
+            else (data.get("runs", []) if isinstance(data, dict) else [])
+        )
         for r in runs:  # already sorted newest-first by the API
             if isinstance(r, dict) and r.get("status") == "assembled":
                 rid = str(r.get("run_id", "")).strip()
@@ -232,8 +236,12 @@ TG_CHAT = os.environ.get("STYLEFORGE_TG_CHAT", "").strip().split(",")[0].strip()
 TG_API = "https://api.telegram.org"
 
 
-def _tg_post(endpoint: str, fields: list[tuple[str, str]], photo: bytes | None = None,
-             photo_fname: str = "asset.png") -> dict:
+def _tg_post(
+    endpoint: str,
+    fields: list[tuple[str, str]],
+    photo: bytes | None = None,
+    photo_fname: str = "asset.png",
+) -> dict:
     """POST to Telegram Bot API (stdlib multipart). Returns parsed JSON."""
     boundary = f"----tg{uuid4().hex}"
     buf = io.BytesIO()
@@ -243,7 +251,9 @@ def _tg_post(endpoint: str, fields: list[tuple[str, str]], photo: bytes | None =
         buf.write(f"{val}\r\n".encode())
     if photo is not None:
         buf.write(f"--{boundary}\r\n".encode())
-        buf.write(f'Content-Disposition: form-data; name="photo"; filename="{photo_fname}"\r\n'.encode())
+        buf.write(
+            f'Content-Disposition: form-data; name="photo"; filename="{photo_fname}"\r\n'.encode()
+        )
         buf.write(b"Content-Type: image/png\r\n\r\n")
         buf.write(photo)
         buf.write(b"\r\n")
@@ -273,8 +283,12 @@ def send_telegram_photo(image: bytes, caption: str) -> None:
     if not TG_TOKEN or not TG_CHAT:
         return
     try:
-        _tg_post("sendPhoto", [("chat_id", TG_CHAT), ("caption", caption[:1024])],
-                 photo=image, photo_fname="brand_asset.png")
+        _tg_post(
+            "sendPhoto",
+            [("chat_id", TG_CHAT), ("caption", caption[:1024])],
+            photo=image,
+            photo_fname="brand_asset.png",
+        )
         log(f"telegram photo sent ({len(image)} bytes, caption {len(caption)} chars)")
     except Exception as exc:  # noqa: BLE001
         log(f"telegram photo send failed: {exc}")
@@ -283,6 +297,7 @@ def send_telegram_photo(image: bytes, caption: str) -> None:
 def _strip_markdown(text: str) -> str:
     """Convert markdown to plain readable text for Telegram."""
     import re as _re
+
     # Headers: ## Title → Title (remove #)
     text = _re.sub(r"^#{1,6}\s*", "", text, flags=_re.MULTILINE)
     # Bold: **text** → text
@@ -292,7 +307,9 @@ def _strip_markdown(text: str) -> str:
     # Code: `text` → text
     text = _re.sub(r"`(.+?)`", r"\1", text)
     # Table rows: | a | b | → a: b
-    text = _re.sub(r"^\|(.+)\|$", lambda m: "  " + m.group(1).replace(" | ", " · "), text, flags=_re.MULTILINE)
+    text = _re.sub(
+        r"^\|(.+)\|$", lambda m: "  " + m.group(1).replace(" | ", " · "), text, flags=_re.MULTILINE
+    )
     # Table separator: |---|---| → remove
     text = _re.sub(r"^\|[-:|\s]+\|$", "", text, flags=_re.MULTILINE)
     # Bullet lists: - item → • item
@@ -357,7 +374,9 @@ def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide:
                 hex_val = p.get("hex", "")
                 rank = p.get("rank", "")
                 emoji = _hex_to_emoji(hex_val)
-                rank_label = {"primary": "主色", "accent": "强调色", "neutral": "中性色"}.get(rank, "")
+                rank_label = {"primary": "主色", "accent": "强调色", "neutral": "中性色"}.get(
+                    rank, ""
+                )
                 lines.append(f"  {emoji} {name} {hex_val} ({rank_label})")
             else:
                 lines.append(f"  ⚪ {p}")

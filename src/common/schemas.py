@@ -137,6 +137,7 @@ class RunInput(BaseModel):
 
 class IterateRequest(BaseModel):
     """CP-019: conversational design iteration request."""
+
     model_config = ConfigDict(extra="forbid")
 
     feedback: str = Field(min_length=1, max_length=2000)
@@ -170,6 +171,7 @@ class OptimizationStats(BaseModel):
 
 class ConsistencyDimension(BaseModel):
     """One dimension of cross-asset consistency (CP-017)."""
+
     model_config = ConfigDict(extra="forbid")
 
     dimension: str  # e.g. "palette", "typography", "mood", "composition"
@@ -179,6 +181,7 @@ class ConsistencyDimension(BaseModel):
 
 class ConsistencyMatrix(BaseModel):
     """VLM cross-asset consistency check result (CP-017)."""
+
     model_config = ConfigDict(extra="forbid")
 
     overall_score: float = Field(ge=0.0, le=1.0)

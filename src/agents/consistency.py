@@ -40,14 +40,14 @@ _SYSTEM_PROMPT = (
     "- mood: Is the visual mood/atmosphere coherent?\n"
     "- composition: Are the layout/composition choices harmonious?\n\n"
     "Return ONLY a JSON object:\n"
-    '{\n'
+    "{\n"
     '  "overall_score": 0.0–1.0,\n'
     '  "dimensions": [\n'
     '    {"dimension": "palette", "score": 0.0–1.0, "notes": "..."},\n'
     '    {"dimension": "typography", "score": 0.0–1.0, "notes": "..."},\n'
     '    {"dimension": "mood", "score": 0.0–1.0, "notes": "..."},\n'
     '    {"dimension": "composition", "score": 0.0–1.0, "notes": "..."}\n'
-    '  ],\n'
+    "  ],\n"
     '  "summary": "one-line overall assessment"\n'
     "}"
 )
@@ -78,11 +78,13 @@ def _build_multi_image_messages(
 def _build_matrix(data: dict[str, Any], asset_ids: list[str]) -> ConsistencyMatrix:
     dims = []
     for d in data.get("dimensions", []):
-        dims.append(ConsistencyDimension(
-            dimension=str(d.get("dimension", "")),
-            score=float(d.get("score", 0.0)),
-            notes=str(d.get("notes", "")),
-        ))
+        dims.append(
+            ConsistencyDimension(
+                dimension=str(d.get("dimension", "")),
+                score=float(d.get("score", 0.0)),
+                notes=str(d.get("notes", "")),
+            )
+        )
     return ConsistencyMatrix(
         overall_score=float(data.get("overall_score", 0.0)),
         dimensions=dims,
@@ -131,9 +133,7 @@ async def check_consistency(
         asset_images: list[tuple[str, str]] = []
         for aid, png in approved_assets:
             try:
-                data_url = bytes_to_data_url(
-                    resize_for_vlm(Path(png), max_side=768), "image/png"
-                )
+                data_url = bytes_to_data_url(resize_for_vlm(Path(png), max_side=768), "image/png")
                 asset_images.append((aid, data_url))
             except Exception as exc:  # noqa: BLE001
                 log.warning("consistency.image_skip", asset_id=aid, error=str(exc)[:120])
@@ -151,7 +151,10 @@ async def check_consistency(
         except (ValidationError, VlmJsonError, KeyError, ValueError, TypeError) as exc:
             log.warning("consistency.repair", error=str(exc)[:160])
             repair = messages + [
-                {"role": "assistant", "content": json.dumps(data) if isinstance(data, dict) else "(invalid)"},
+                {
+                    "role": "assistant",
+                    "content": json.dumps(data) if isinstance(data, dict) else "(invalid)",
+                },
                 {
                     "role": "user",
                     "content": (

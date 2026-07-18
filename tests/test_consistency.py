@@ -50,7 +50,10 @@ async def test_consistency_single_asset_skips(fake_settings, tmp_path) -> None:
     png1 = tmp_path / "a.png"
     _png(png1)
     matrix = await check_consistency(
-        [("logo", png1)], DNA, run_dir=run, settings=fake_settings,
+        [("logo", png1)],
+        DNA,
+        run_dir=run,
+        settings=fake_settings,
     )
     assert matrix.overall_score == 1.0
     assert "single asset" in matrix.summary
@@ -77,7 +80,10 @@ async def test_consistency_multi_asset_returns_matrix(fake_settings, tmp_path) -
     }
     c = _client(lambda r: httpx.Response(200, json=_completion(json.dumps(payload))), fake_settings)
     matrix = await check_consistency(
-        [("logo", png1), ("hero_banner", png2)], DNA, run_dir=run, client=c,
+        [("logo", png1), ("hero_banner", png2)],
+        DNA,
+        run_dir=run,
+        client=c,
     )
     assert matrix.overall_score == pytest.approx(0.82)
     assert len(matrix.dimensions) == 4
@@ -97,7 +103,10 @@ async def test_consistency_never_crashes_on_bad_json(fake_settings, tmp_path) ->
 
     c = _client(lambda r: httpx.Response(200, json=_completion("not json!!")), fake_settings)
     matrix = await check_consistency(
-        [("logo", png1), ("hero_banner", png2)], DNA, run_dir=run, client=c,
+        [("logo", png1), ("hero_banner", png2)],
+        DNA,
+        run_dir=run,
+        client=c,
     )
     assert matrix.overall_score == 0.0
     assert "failed" in matrix.summary.lower()
