@@ -8,9 +8,14 @@
 # Run via cron every 10 minutes:
 #   */10 * * * * /home/Developer/game/tools/openclaw-watchdog.sh >> /tmp/openclaw-watchdog.log 2>&1
 
+# cron doesn't inherit the D-Bus / XDG environment — set it explicitly
+# so systemctl --user and journalctl --user work from cron.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+
 STALE_MINUTES=${STALE_MINUTES:-15}
 JOURNAL_SINCE="${STALE_MINUTES} min ago"
-LOG_PREFIX="[watchdog]"
+LOG_PREFIX="[watchdog $(date -u +%H:%M)]"
 
 # Check if the service is active at all
 if ! systemctl --user is-active --quiet openclaw; then
