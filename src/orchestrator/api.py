@@ -234,10 +234,12 @@ def create_app(
         root = Path(runs_root).resolve()
         if not root.exists():
             return {"runs": []}
+        dirs = [d for d in root.iterdir() if d.is_dir()]
+        # Sort by mtime (newest first), not by name — golden-001/test-run-001
+        # would otherwise appear before timestamped runs.
+        dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
         out = []
-        for d in sorted(root.iterdir(), reverse=True):
-            if not d.is_dir():
-                continue
+        for d in dirs:
             kit_p = d / "brand_kit" / "kit_manifest.json"
             status = "assembled" if kit_p.exists() else "pending"
             out.append({"run_id": d.name, "status": status, "created_at": int(d.stat().st_mtime)})
