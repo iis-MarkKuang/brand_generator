@@ -397,3 +397,91 @@ async def test_iterate_404_on_missing_prev(tmp_path) -> None:
         assert r.status_code == 404
     finally:
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_multi_image_upload(tmp_path) -> None:
+    """CP-020: uploading multiple image parts saves reference_N.png files."""
+    s = _settings(tmp_path)
+    client, app = _client(s, _mock_pipeline())
+    try:
+        r = await client.post(
+            "/api/runs",
+            data={
+                "brief": "a coffee brand. @1 is logo, @2 is packaging",
+                "brand_name": "Test",
+                "assets": "logo",
+                "max_retries": "1",
+            },
+            files=[
+                ("image", ("ref1.png", _png_bytes(), "image/png")),
+                ("image", ("ref2.png", _png_bytes(), "image/png")),
+            ],
+        )
+        assert r.status_code == 202
+        run_id = r.json()["run_id"]
+        # Verify both reference images were saved
+        rd = RunDir(Path(s.runs_root), run_id)
+        input_files = list(rd.input_dir.iterdir())
+        names = [f.name for f in input_files]
+        assert any("reference_1" in n for n in names), f"expected reference_1 in {names}"
+        assert any("reference_2" in n for n in names), f"expected reference_2 in {names}"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_atN_out_of_range_rejected(tmp_path) -> None:
+    """CP-020: @N referencing a non-existent image returns 400."""
+    s = _settings(tmp_path)
+    client, app = _client(s, _mock_pipeline())
+    try:
+        r = await client.post(
+            "/api/runs",
+            data={
+                "brief": "a brand where @3 is referenced but only 1 image uploaded",
+                "brand_name": "Test",
+            },
+            files={"image": ("ref.png", _png_bytes(), "image/png")},
+        )
+        assert r.status_code == 400
+        assert "@3" in r.text
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_too_many_images_rejected(tmp_path) -> None:
+    """CP-020: uploading more than max_reference_images returns 400."""
+    s = _settings(tmp_path, max_reference_images=2)
+    client, app = _client(s, _mock_pipeline())
+    try:
+        files = [("image", (f"ref{i}.png", _png_bytes(), "image/png")) for i in range(3)]
+        r = await client.post(
+            "/api/runs",
+            data={"brief": "test", "brand_name": "Test"},
+            files=files,
+        )
+        assert r.status_code == 400
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_single_image_backward_compat(tmp_path) -> None:
+    """CP-020: single image upload (old client) still works."""
+    s = _settings(tmp_path)
+    client, app = _client(s, _mock_pipeline())
+    try:
+        r = await client.post(
+            "/api/runs",
+            data={"brief": "a coffee roaster", "brand_name": "Test"},
+            files={"image": ("ref.png", _png_bytes(), "image/png")},
+        )
+        assert r.status_code == 202
+        run_id = r.json()["run_id"]
+        rd = RunDir(Path(s.runs_root), run_id)
+        input_files = list(rd.input_dir.iterdir())
+        assert any("reference_1" in f.name for f in input_files)
+    finally:
+        await client.aclose()

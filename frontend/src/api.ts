@@ -20,7 +20,7 @@ export interface StartRunInput {
   brand_name: string;
   assets: string[];
   max_retries: number;
-  image: File;
+  images: File[];
 }
 
 export async function startRun(input: StartRunInput): Promise<{ run_id: string }> {
@@ -29,7 +29,9 @@ export async function startRun(input: StartRunInput): Promise<{ run_id: string }
   form.set("brand_name", input.brand_name);
   form.set("assets", input.assets.join(","));
   form.set("max_retries", String(input.max_retries));
-  form.set("image", input.image);
+  for (const f of input.images) {
+    form.append("image", f);
+  }
   const res = await fetch(`${base}/api/runs`, { method: "POST", body: form });
   if (res.status === 409) {
     const body = await res.json();

@@ -11,11 +11,11 @@
   "run_id": "20260713-104200-a1b2",
   "brand_name": "Ember & Oat",
   "brief": "Cozy specialty coffee roaster; warm, craft, hand-made; target young urban professionals.",
-  "reference_image": "runs/<run_id>/input/reference.jpg",
+  "reference_images": ["runs/<run_id>/input/reference_1.jpg"],
+  "image_roles": {},
   "options": {
     "assets": ["logo", "hero_banner", "social_square", "product_mockup", "business_card"],
-    "max_retries_per_asset": 2,
-    "pulid_reference": null
+    "max_retries_per_asset": 2
   }
 }
 ```
@@ -67,7 +67,8 @@
       "negative_prompt": "...",
       "composition": "product hero, slight angle",
       "uses_pulid": true,
-      "pulid_reference": "runs/<run_id>/input/reference.jpg",
+      "pulid_reference": "runs/<run_id>/input/reference_1.jpg",
+      "reference_index": 1,
       "seed": 91837
     }
   ]

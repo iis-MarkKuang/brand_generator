@@ -24,7 +24,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--brand", required=True)
     ap.add_argument("--brief", default="A warm, craft-first small-batch coffee roaster.")
-    ap.add_argument("--ref", required=True, help="reference image path")
+    ap.add_argument(
+        "--ref",
+        required=True,
+        nargs="+",
+        help="one or more reference image paths (CP-020 multi-ref)",
+    )
     ap.add_argument(
         "--assets", default="logo,hero_banner,social_square,product_mockup,business_card"
     )
@@ -37,7 +42,7 @@ def main() -> int:
         run_id=args.run_id,
         brand_name=args.brand,
         brief=args.brief,
-        reference_image=args.ref,
+        reference_images=args.ref,
         options=RunOptions(assets=assets, max_retries_per_asset=args.max_retries),
     )
 

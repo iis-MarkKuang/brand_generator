@@ -21,13 +21,14 @@ import structlog
 
 from src.agents.art_director import plan_assets, rewrite_prompt
 from src.agents.assembler import assemble_kit
-from src.agents.brand_analyst import analyze_brand, brand_dna_cache_key
+from src.agents.brand_analyst import analyze_brand, brand_dna_cache_key_multi
 from src.agents.consistency import check_consistency
 from src.agents.critic import critic_asset
 from src.agents.generator import generate_asset
 from src.common.aiofs import read_text as aio_read_text
 from src.common.aiofs import to_thread
 from src.common.aiofs import write_text as aio_write_text
+from src.common.brief_parser import BriefTokenError, parse_image_roles, validate_brief_tokens
 from src.common.comfyui import ComfyUIClient
 from src.common.config import Settings, get_settings
 from src.common.nvidia_nim import NimClient
@@ -58,12 +59,40 @@ CriticFn = Callable[..., Awaitable[Any]]
 RewriteFn = Callable[..., Awaitable[AssetSpec]]
 
 
-def _check_cache_hit(brief: str, image: str | Path) -> bool:
+def _check_cache_hit(brief: str, images: list[str | Path]) -> bool:
     try:
-        key = brand_dna_cache_key(brief, Path(image).read_bytes())
+        all_bytes = [Path(p).read_bytes() for p in images]
+        key = brand_dna_cache_key_multi(brief, all_bytes)
         return (Path("cache/brand_dna") / f"{key}.json").exists()
     except OSError:
         return False
+
+
+def _resolve_reference_indices(
+    manifest: AssetManifest, reference_images: list[str]
+) -> AssetManifest:
+    """CP-020: post-plan hook — resolve reference_index → pulid_reference path.
+
+    For each asset with ``reference_index = N`` (1-based), set ``pulid_reference``
+    to ``reference_images[N-1]``. For ``uses_pulid=true`` assets without an explicit
+    ``reference_index``, default to the first image.
+    """
+    if not reference_images:
+        return manifest
+    updated_assets: list[AssetSpec] = []
+    for spec in manifest.assets:
+        idx = spec.reference_index
+        if idx is not None and 1 <= idx <= len(reference_images):
+            ref_path = reference_images[idx - 1]
+            # Set pulid_reference only if uses_pulid is true; otherwise the
+            # index still serves as a semantic annotation for the critic.
+            if spec.uses_pulid and not spec.pulid_reference:
+                spec = spec.model_copy(update={"pulid_reference": ref_path})
+        elif spec.uses_pulid and not spec.pulid_reference:
+            # Default: first image for PuLID when no index specified.
+            spec = spec.model_copy(update={"pulid_reference": reference_images[0]})
+        updated_assets.append(spec)
+    return manifest.model_copy(update={"assets": updated_assets})
 
 
 def _bump_routing_stats(router: ReasonRouter, stats: OptimizationStats) -> None:
@@ -115,13 +144,26 @@ async def run_pipeline(
     critic = critic_fn or critic_asset
     rewrite = rewrite_fn or rewrite_prompt
 
-    # Provenance: copy the reference image into the run's input dir (best-effort).
+    # CP-020: validate @N tokens in brief against the number of uploaded images.
+    ref_images = run_input.reference_images
+    try:
+        validate_brief_tokens(run_input.brief, len(ref_images))
+    except BriefTokenError:
+        raise  # already validated by the API; re-check for direct callers
+    image_roles = parse_image_roles(run_input.brief, len(ref_images))
+
+    # Provenance: copy reference images into the run's input dir (best-effort).
+    # The API already saved them as reference_N.<ext>; this is a no-op for API runs
+    # but matters for CLI runs where the source may be elsewhere.
     with contextlib.suppress(OSError):
-        shutil.copyfile(run_input.reference_image, run_dir.input_dir / "reference.png")
+        for idx, src in enumerate(ref_images, start=1):
+            dst = run_dir.input_dir / f"reference_{idx}{Path(src).suffix or '.png'}"
+            if not dst.exists():
+                shutil.copyfile(src, dst)
 
     stats = OptimizationStats()
     kit_assets: list[KitAsset] = []
-    dna_cache_hit = await to_thread(_check_cache_hit, run_input.brief, run_input.reference_image)
+    dna_cache_hit = await to_thread(_check_cache_hit, run_input.brief, ref_images)
     stats.brand_dna_cache_hit = dna_cache_hit
     dna: BrandDna | None = None
     manifest: AssetManifest | None = None
@@ -130,7 +172,7 @@ async def run_pipeline(
         # 1 — Brand Analyst (cloud VLM; no local VRAM swap needed).
         dna = await analyze(
             run_input.brief,
-            run_input.reference_image,
+            ref_images,
             run_input.brand_name,
             run_dir=run_dir,
             settings=s,
@@ -143,11 +185,20 @@ async def run_pipeline(
         orch.begin_reasoning()
         try:
             manifest = await plan(
-                dna, run_input.options.assets, run_dir=run_dir, settings=s, client=router
+                dna,
+                run_input.options.assets,
+                run_dir=run_dir,
+                settings=s,
+                client=router,
+                image_roles=image_roles,
+                num_images=len(ref_images),
             )
         finally:
             orch.end_reasoning()
         _bump_routing_stats(router, stats)
+
+        # CP-020: post-plan hook — resolve reference_index → pulid_reference.
+        manifest = _resolve_reference_indices(manifest, ref_images)
 
         # 3 — per-asset generate→critique→refine loop.
         for idx, spec in enumerate(manifest.assets):

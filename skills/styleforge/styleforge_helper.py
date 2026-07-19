@@ -98,6 +98,30 @@ def latest_inbound_image(max_age_s: int = 300) -> Path | None:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def latest_inbound_images(max_n: int = 5, max_age_s: int = 300) -> list[Path]:
+    """Up to ``max_n`` newest inbound images (sorted oldest→newest for stable @N ordering).
+
+    CP-020: collects multiple reference images so users can upload several and
+    reference them by ``@1``/``@2``/… in their brief. Only images modified within
+    the last ``max_age_s`` seconds are considered.
+    """
+    if not INBOUND_DIR or not INBOUND_DIR.is_dir():
+        return []
+    cutoff = time.time() - max_age_s
+    candidates = [
+        p
+        for p in INBOUND_DIR.iterdir()
+        if p.is_file()
+        and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
+        and p.stat().st_mtime >= cutoff
+    ]
+    if not candidates:
+        return []
+    # Sort by mtime ascending (oldest first) so @1 = first uploaded, @N = last.
+    candidates.sort(key=lambda p: p.stat().st_mtime)
+    return candidates[-max_n:]
+
+
 def derive_brand_name(brief: str) -> str:
     words = [w for w in brief.replace(",", " ").split() if w]
     if not words:
@@ -106,8 +130,12 @@ def derive_brand_name(brief: str) -> str:
     return name[:40]
 
 
-def post_run(brief: str, image_path: Path, brand_name: str, assets: str) -> str:
-    """multipart/form-data POST to /api/runs → run_id (stdlib only)."""
+def post_run(brief: str, image_paths: list[Path], brand_name: str, assets: str) -> str:
+    """multipart/form-data POST to /api/runs → run_id (stdlib only).
+
+    CP-020: sends one or more ``image`` file parts so the backend receives a
+    list of reference images. The brief may use ``@1``/``@2``/… tokens.
+    """
     boundary = f"----styleforge{uuid4().hex}"
     fields: list[tuple[str, str]] = [
         ("brief", brief),
@@ -120,14 +148,15 @@ def post_run(brief: str, image_path: Path, brand_name: str, assets: str) -> str:
         buf.write(f"--{boundary}\r\n".encode())
         buf.write(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
         buf.write(f"{val}\r\n".encode())
-    # image file part
-    mime = mimetypes.guess_type(str(image_path))[0] or "image/png"
-    fname = image_path.name
-    buf.write(f"--{boundary}\r\n".encode())
-    buf.write(f'Content-Disposition: form-data; name="image"; filename="{fname}"\r\n'.encode())
-    buf.write(f"Content-Type: {mime}\r\n\r\n".encode())
-    buf.write(image_path.read_bytes())
-    buf.write(b"\r\n")
+    # image file parts (one per reference image)
+    for img_path in image_paths:
+        mime = mimetypes.guess_type(str(img_path))[0] or "image/png"
+        fname = img_path.name
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="image"; filename="{fname}"\r\n'.encode())
+        buf.write(f"Content-Type: {mime}\r\n\r\n".encode())
+        buf.write(img_path.read_bytes())
+        buf.write(b"\r\n")
     buf.write(f"--{boundary}--\r\n".encode())
     body = buf.getvalue()
     req = urllib.request.Request(
@@ -466,14 +495,15 @@ def _consecutive_run_cap(max_runs: int = 3, window_s: int = 600) -> bool:
     return True
 
 
-def _consume_inbound_image(image: Path) -> None:
-    """Move a used inbound image to the archive so it can't be re-picked."""
+def _consume_inbound_images(images: list[Path]) -> None:
+    """Move used inbound images to the archive so they can't be re-picked (CP-020)."""
     if not INBOUND_DIR:
         return
     archive = INBOUND_DIR.parent / "inbound.archive"
     with contextlib.suppress(OSError):
         archive.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(image), str(archive / image.name))
+        for img in images:
+            shutil.move(str(img), str(archive / img.name))
 
 
 def main() -> int:
@@ -505,16 +535,21 @@ def main() -> int:
     log(f"API           = {API}")
 
     # Explicit image path (env) wins; else auto-discover OpenClaw inbound.
+    # CP-020: support multiple reference images (comma-separated env or N inbound).
     explicit = os.environ.get("STYLEFORGE_IMAGE", "").strip()
-    if explicit and Path(explicit).is_file():
-        image = Path(explicit).resolve()
-    else:
-        image = latest_inbound_image()
+    images: list[Path] = []
+    if explicit:
+        for part in explicit.split(","):
+            p = part.strip()
+            if p and Path(p).is_file():
+                images.append(Path(p).resolve())
+    if not images:
+        images = latest_inbound_images(max_n=5)
 
     # CP-019: conversational iteration — if no image but there's a recent
     # completed run, treat the brief as iteration feedback.
     is_iterate = False
-    if image is None:
+    if not images:
         prev_id = find_latest_assembled_run()
         if prev_id:
             log(f"no image — iterating on prev run {prev_id} with feedback: {brief[:80]}")
@@ -527,7 +562,7 @@ def main() -> int:
             )
             return 1
     else:
-        log(f"reference image -> {image}")
+        log(f"reference images -> {[str(p) for p in images]}")
 
     # Consecutive run cap: refuse if too many runs in the last 10 min
     # without a fresh user image (agent self-loop at slower rate).
@@ -548,9 +583,9 @@ def main() -> int:
         run_id = post_iterate(prev_id, brief)
     else:
         key_log("开始生成品牌视觉识别包…")
-        # Consume the inbound image so a self-loop can't re-pick it.
-        _consume_inbound_image(image)
-        run_id = post_run(brief, image, brand_name, assets)
+        # Consume the inbound images so a self-loop can't re-pick them.
+        _consume_inbound_images(images)
+        run_id = post_run(brief, images, brand_name, assets)
     key_log(f"Run {run_id} 已启动，等待流水线完成…")
 
     manifest = poll_until_assembled(run_id)

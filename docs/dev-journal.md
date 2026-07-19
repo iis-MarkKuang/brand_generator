@@ -594,10 +594,38 @@ or VLM depth. Three "花活" added on top:
   navigates to the new live run.
 - Tests: 89 passing (2 new iterate API tests: happy path + 404 on missing prev).
 
+### CP-020 — Multi-reference image + @N brief syntax
+
+Implemented multi-image upload (1–5 images per run) with `@1`/`@2`/… tokens in
+the brief so users can tell each pipeline stage which image to reference.
+
+- New `src/common/brief_parser.py`: `parse_image_roles` extracts sentence-level
+  context around each `@N` token; `validate_brief_tokens` rejects out-of-range
+  indices early (400 error).
+- Schema: `RunInput.reference_image: str` → `reference_images: list[str]`;
+  added `image_roles: dict[int, str]`; added `reference_index: int | None` to
+  `AssetSpec`; removed dead `RunOptions.pulid_reference`.
+- API: `image: UploadFile` → `list[UploadFile]`; saves `reference_N.<ext>`;
+  validates `@N` range and `max_reference_images`.
+- Helper: `latest_inbound_images(max_n=5)` collects N newest inbound images
+  (sorted by mtime for stable @N ordering); `post_run` sends multiple parts;
+  `_consume_inbound_images` archives all.
+- Brand Analyst: accepts `str | Path | Sequence[str | Path]`; VLM message has
+  one `image_url` block per image labeled `Image @N:`; composite cache key.
+- Art Director: `plan_assets(..., image_roles, num_images)` — passes role
+  descriptions so the LLM can set `reference_index` per asset.
+- Runner: post-plan hook `_resolve_reference_indices` maps `reference_index`
+  → `pulid_reference` path; defaults `uses_pulid=true` to image 1.
+- Frontend: multi-file drop zone with @N labels and per-file remove buttons.
+- CLI: `--ref` accepts `nargs="+"`.
+- Tests: 103 passing (14 new: brief parser + multi-image API + backward compat).
+- Backward compatible: single-image uploads still work (wrapped as 1-element list).
+
 ### Final status after wow-factor phase
 
-All 19 change packets (CP-001 … CP-019) are ✅ done. 89 tests, ruff + mypy clean,
+All 20 change packets (CP-001 … CP-020) are ✅ done. 103 tests, ruff + mypy clean,
 frontend tsc + eslint + build clean. The pipeline now showcases: (1) DGX Spark's 120 GB
 unified-memory orchestration via a live VRAM dashboard, (2) VLM deep multi-image
 reasoning via the consistency matrix + 3-step critic chain, (3) interactive multi-turn
-agent loops via conversational Telegram iteration.
+agent loops via conversational Telegram iteration, (4) multi-reference image input
+with @N brief syntax for fine-grained per-asset image guidance.

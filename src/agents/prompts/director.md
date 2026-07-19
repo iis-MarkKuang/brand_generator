@@ -16,7 +16,8 @@ Return **STRICT JSON ONLY** (no prose, no code fences) in this shape:
       "flux_prompt": "<=600 chars",
       "negative_prompt": "<string>",
       "composition": "<short composition note>",
-      "uses_pulid": false
+      "uses_pulid": false,
+      "reference_index": 1
     }
   ]
 }
@@ -32,5 +33,8 @@ Rules:
   product_mockup `[1024,1024]`, hero_banner `[1344,768]`, business_card `[1024,576]`.
 - `uses_pulid=true` ONLY for mascot/identity assets that must preserve a reference face
   (set `pulid_reference` only then); default `false`.
+- `reference_index` (optional, 1-based): when the user uploaded multiple images and
+  used `@N` tokens in the brief, set this to the image number that best matches this
+  asset. Omit or set to null if no specific image is relevant.
 - Do NOT include `id` or `seed` — the runtime assigns them deterministically.
 - Reuse the same palette hex tokens and typography feel across all assets.

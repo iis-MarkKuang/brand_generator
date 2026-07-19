@@ -96,6 +96,8 @@ class Settings(BaseSettings):
 
     # --- Security & token budget (07-security-and-tokens.md §D) ---
     max_upload_mb: int = 10
+    # CP-020: maximum number of reference images per run.
+    max_reference_images: int = 5
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
     )

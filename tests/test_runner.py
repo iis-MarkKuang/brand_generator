@@ -94,7 +94,7 @@ def _run_input(
         run_id=run_id,
         brand_name="Ember & Oat",
         brief="a coffee roaster",
-        reference_image="x.png",
+        reference_images=["x.png"],
         options=RunOptions(assets=assets, max_retries_per_asset=max_retries),
     )
 
@@ -110,10 +110,10 @@ def _make_fns(
     """Build mocked analyze/plan/generate/critic/rewrite callables."""
     critic_pass_ids = critic_pass_ids if critic_pass_ids is not None else set()
 
-    async def analyze(brief, image, brand_name, *, run_dir, settings, client):
+    async def analyze(brief, images, brand_name, *, run_dir, settings, client):
         return DNA
 
-    async def plan(dna, assets, *, run_dir, settings, client):
+    async def plan(dna, assets, *, run_dir, settings, client, **kwargs):
         return AssetManifest(run_id=run_dir.run_id, assets=[_spec(t) for t in assets])
 
     async def generate(spec, run_dir, attempt, *, settings, client, restart_fn=None):

@@ -40,6 +40,7 @@
 | CP-017 | [VLM reasoning chain + consistency matrix](CP-017-vlm-reasoning-consistency.md) | 6 | CP-006, CP-008 | ✅ done |
 | CP-018 | [Real-time VRAM orchestration dashboard](CP-018-vram-dashboard.md) | 6 | CP-010, CP-011 | ✅ done |
 | CP-019 | [Conversational design iteration via Telegram](CP-019-conversational-iteration.md) | 6 | CP-008, CP-012 | ✅ done |
+| CP-020 | [Multi-reference image + @N brief syntax](CP-020-multi-ref-images.md) | 6 | CP-002, CP-008 | ✅ done |
 
 ## Dependency graph
 

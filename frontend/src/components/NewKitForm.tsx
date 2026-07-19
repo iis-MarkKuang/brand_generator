@@ -18,7 +18,7 @@ export default function NewKitForm() {
     "A warm, craft-first small-batch coffee roaster. Hand-drawn serif, earthy palette of espresso and oat cream.",
   );
   const [brandName, setBrandName] = useState("Ember & Oat");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [assets, setAssets] = useState<Set<AssetType>>(
     new Set<AssetType>(["logo", "social_square", "hero_banner"]),
   );
@@ -44,8 +44,12 @@ export default function NewKitForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!file) {
-      setError("Please add a reference image.");
+    if (files.length === 0) {
+      setError("Please add at least one reference image.");
+      return;
+    }
+    if (files.length > 5) {
+      setError("Maximum 5 reference images.");
       return;
     }
     if (assets.size === 0) {
@@ -59,7 +63,7 @@ export default function NewKitForm() {
         brand_name: brandName,
         assets: [...assets],
         max_retries: maxRetries,
-        image: file,
+        images: files,
       });
       navigate(`/run/${run_id}`);
     } catch (err) {
@@ -124,26 +128,62 @@ export default function NewKitForm() {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            const f = e.dataTransfer.files[0];
-            if (f) setFile(f);
+            const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+              f.type.startsWith("image/"),
+            );
+            if (dropped.length) setFiles((prev) => [...prev, ...dropped].slice(0, 5));
           }}
         >
           <input
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
-            onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              if (picked.length) setFiles((prev) => [...prev, ...picked].slice(0, 5));
+            }}
           />
-          {file ? (
-            <div className="text-sm">
-              <div className="text-slate-200">{file.name}</div>
+          {files.length > 0 ? (
+            <div className="text-sm space-y-2">
+              <div className="text-slate-200">
+                {files.length} reference image(s) selected · click to add more (max 5)
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {files.map((f, i) => (
+                  <div
+                    key={`${f.name}-${i}`}
+                    className="flex items-center gap-1.5 bg-ink border border-edge rounded-lg px-2 py-1"
+                  >
+                    <span className="text-accent text-xs font-mono">@{i + 1}</span>
+                    <span className="text-slate-200 text-xs">{f.name}</span>
+                    <span className="text-muted text-xs">
+                      {Math.round(f.size / 1024)}KB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        setFiles((prev) => prev.filter((_, idx) => idx !== i));
+                      }}
+                      className="text-rose-400 hover:text-rose-300 text-xs ml-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
               <div className="text-xs text-muted">
-                {Math.round(file.size / 1024)} KB · click to replace
+                Use <code className="text-accent">@1</code>,{" "}
+                <code className="text-accent">@2</code> in your brief to reference
+                specific images.
               </div>
             </div>
           ) : (
             <div className="text-sm text-muted">
-              Drag & drop a reference image, or click to browse
+              Drag & drop reference image(s), or click to browse (max 5). Use @1, @2 in
+              your brief to reference specific images.
             </div>
           )}
         </label>

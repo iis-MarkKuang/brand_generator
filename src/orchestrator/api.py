@@ -38,6 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 
+from src.common.brief_parser import BriefTokenError, validate_brief_tokens
 from src.common.config import Settings, get_settings
 from src.common.runs import RunDir, new_run_id
 from src.common.schemas import AssetType, HealthResponse, IterateRequest, RunInput, RunOptions
@@ -106,31 +107,59 @@ def create_app(
     @app.post("/api/runs", tags=["runs"])
     async def start_run(
         brief: Annotated[str, Form(...)],
-        image: Annotated[UploadFile, File(...)],
+        image: Annotated[list[UploadFile], File(...)],
         brand_name: Annotated[str, Form(...)] = "Untitled",
         assets: Annotated[
             str, Form(...)
         ] = "logo,hero_banner,social_square,product_mockup,business_card",
         max_retries: Annotated[int, Form(...)] = 1,
     ) -> JSONResponse:
-        """Start a new brand-kit generation run (multipart upload). Returns 202 + run_id."""
+        """Start a new brand-kit generation run (multipart upload). Returns 202 + run_id.
+
+        Accepts one or more ``image`` file parts (CP-020 multi-reference). The brief
+        may use ``@1``/``@2``/… tokens to indicate which image serves which purpose.
+        """
         active = [rid for rid, t in reg.runs.items() if not t.done()]
         if active:
             raise HTTPException(status_code=409, detail={"active_run_id": active[0]})
 
-        raw = await image.read()
-        if len(raw) > s.max_upload_mb * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="upload too large")
+        # CP-020: accept 1..max_reference_images images.
+        if not image:
+            raise HTTPException(status_code=400, detail="at least one image is required")
+        if len(image) > s.max_reference_images:
+            raise HTTPException(
+                status_code=400,
+                detail=f"too many images: {len(image)} > max {s.max_reference_images}",
+            )
+
+        # Validate @N tokens in brief against the upload count (early fail).
         try:
-            with Image.open(io.BytesIO(raw)) as im:
-                im.verify()
-        except (UnidentifiedImageError, ValueError) as exc:
-            raise HTTPException(status_code=400, detail="invalid image") from exc
+            validate_brief_tokens(brief, len(image))
+        except BriefTokenError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         run_id = new_run_id()
         run_dir = RunDir(runs_root, run_id).ensure()
-        ref_path = run_dir.input_dir / "reference.png"
-        ref_path.write_bytes(raw)
+
+        # Save each image as reference_<N>.<ext> (preserve original extension).
+        ref_paths: list[str] = []
+        for idx, img in enumerate(image, start=1):
+            raw = await img.read()
+            if len(raw) > s.max_upload_mb * 1024 * 1024:
+                raise HTTPException(status_code=413, detail=f"image {idx} too large")
+            try:
+                with Image.open(io.BytesIO(raw)) as im:
+                    im.verify()
+            except (UnidentifiedImageError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"image {idx} is not a valid image"
+                ) from exc
+            suffix = Path(img.filename or "").suffix or ".png"
+            if suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                suffix = ".png"
+            ref_path = run_dir.input_dir / f"reference_{idx}{suffix}"
+            ref_path.write_bytes(raw)
+            ref_paths.append(str(ref_path))
 
         asset_list = [a.strip() for a in assets.split(",") if a.strip()]
         valid: list[AssetType] = []
@@ -142,7 +171,7 @@ def create_app(
             run_id=run_id,
             brand_name=brand_name,
             brief=brief,
-            reference_image=str(ref_path),
+            reference_images=ref_paths,
             options=RunOptions(assets=valid, max_retries_per_asset=max_retries),
         )
 

@@ -157,15 +157,28 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     return v
 
 
-def _build_plan_messages(dna: BrandDna, asset_types: Sequence[AssetType]) -> list[dict[str, Any]]:
+def _build_plan_messages(
+    dna: BrandDna,
+    asset_types: Sequence[AssetType],
+    image_roles: dict[int, str] | None = None,
+    num_images: int = 1,
+) -> list[dict[str, Any]]:
     palette = ", ".join(f"{c.hex} ({c.name})" for c in dna.palette)
     user = (
         "Brand DNA:\n"
         f"{dna.model_dump_json(indent=2)}\n\n"
         f"Palette hex tokens to reuse everywhere: {palette}\n"
         f"Requested asset types (one AssetSpec each, in this order): {list(asset_types)}\n\n"
-        "Return the asset manifest JSON."
     )
+    if num_images > 1 and image_roles:
+        roles_desc = "; ".join(f"@{k}: {v}" for k, v in sorted(image_roles.items()))
+        user += (
+            f"The user uploaded {num_images} reference images with these roles: {roles_desc}\n"
+            "For each asset, set `reference_index` to the 1-based image number that best "
+            "matches the user's intent for that asset (from the @N tokens in the brief). "
+            "If no specific image is relevant, omit `reference_index`.\n\n"
+        )
+    user += "Return the asset manifest JSON."
     return [
         {"role": "system", "content": _load_system_prompt()},
         {"role": "user", "content": user},
@@ -186,6 +199,8 @@ def _build_asset(spec_dict: dict[str, Any], atype: str, base_seed: int, bd_hash:
     }
     if spec_dict.get("pulid_reference"):
         built["pulid_reference"] = spec_dict["pulid_reference"]
+    if spec_dict.get("reference_index") is not None:
+        built["reference_index"] = int(spec_dict["reference_index"])
     spec = AssetSpec.model_validate(built)
     if len(_HEX_RE.findall(spec.flux_prompt)) < 2:
         raise ValueError(f"flux_prompt for {atype} must include >=2 palette hex tokens")
@@ -206,6 +221,8 @@ async def plan_assets(
     settings: Settings | None = None,
     client: ReasonClient | None = None,
     cache_dir: str | Path | None = None,
+    image_roles: dict[int, str] | None = None,
+    num_images: int = 1,
 ) -> AssetManifest:
     """Plan a coherent `AssetManifest` (one AssetSpec per requested type).
 
@@ -213,6 +230,10 @@ async def plan_assets(
     and the manifest is re-stamped with the current ``run_id``. On a validation
     failure, one repair retry describing the errors, then raise. ``client`` may be
     an ``OllamaClient`` or a ``ReasonRouter`` (CP-013 local<->cloud routing).
+
+    CP-020: when ``num_images > 1`` and ``image_roles`` is provided, the planning
+    prompt describes each image's role so the LLM can set ``reference_index`` per
+    asset.
     """
     log = _log.bind(agent="art_director", run_id=run_dir.run_id, n_types=len(asset_types))
     bd_hash = brand_hash(brand_dna)
@@ -230,7 +251,9 @@ async def plan_assets(
     owns_client = client is None
     oc: ReasonClient = client or OllamaClient(s)
     try:
-        messages = await to_thread(_build_plan_messages, brand_dna, asset_types)
+        messages = await to_thread(
+            _build_plan_messages, brand_dna, asset_types, image_roles, num_images
+        )
         manifest = await _plan_with_repair(
             oc,
             s.ollama_reasoning_model,

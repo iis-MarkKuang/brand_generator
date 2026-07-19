@@ -115,7 +115,7 @@ def test_size_vram_cap() -> None:
 
 def test_run_id_regex_rejects_traversal() -> None:
     with pytest.raises(ValidationError):
-        RunInput(run_id="../../etc", brand_name="x", brief="b", reference_image="i")
+        RunInput(run_id="../../etc", brand_name="x", brief="b", reference_images=["i"])
 
 
 def test_critic_pass_alias() -> None:

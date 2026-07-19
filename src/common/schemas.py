@@ -11,7 +11,14 @@ import re
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 # Default run-id pattern (mirrored in Settings.run_id_regex; kept here so schemas do not
 # import config, avoiding a circular dependency).
@@ -60,6 +67,10 @@ class AssetSpec(BaseModel):
     composition: str = ""
     uses_pulid: bool = False
     pulid_reference: str | None = None
+    # CP-020: 1-based index into RunInput.reference_images indicating which
+    # uploaded image this asset should reference (for PuLID or style guidance).
+    # None = no specific image; the runner defaults uses_pulid assets to image 1.
+    reference_index: int | None = None
     seed: int
     steps: int | None = None
 
@@ -75,6 +86,13 @@ class AssetSpec(BaseModel):
     def _pulid_only_when_used(cls, v: str | None, info) -> str | None:  # type: ignore[no-untyped-def]
         if v is not None and not info.data.get("uses_pulid", False):
             raise ValueError("pulid_reference set but uses_pulid is false")
+        return v
+
+    @field_validator("reference_index")
+    @classmethod
+    def _reference_index_positive(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("reference_index must be >= 1 (1-based)")
         return v
 
 
@@ -115,7 +133,6 @@ class RunOptions(BaseModel):
 
     assets: list[AssetType] = Field(default_factory=_default_assets)
     max_retries_per_asset: int = Field(default=2, ge=0, le=5)
-    pulid_reference: str | None = None
 
 
 class RunInput(BaseModel):
@@ -124,7 +141,10 @@ class RunInput(BaseModel):
     run_id: RunId
     brand_name: str
     brief: str = Field(min_length=1, max_length=4000)
-    reference_image: str
+    # CP-020: multiple reference images (1-based ordering matching upload order).
+    reference_images: list[str] = Field(default_factory=list, min_length=0)
+    # Parsed @N → role-description map (populated by the runner before agents run).
+    image_roles: dict[int, str] = Field(default_factory=dict)
     options: RunOptions = Field(default_factory=RunOptions)
 
     @field_validator("run_id")
@@ -133,6 +153,12 @@ class RunInput(BaseModel):
         if not re.fullmatch(RUN_ID_PATTERN, v):
             raise ValueError(f"run_id must match {RUN_ID_PATTERN}")
         return v
+
+    @model_validator(mode="after")
+    def _at_least_one_image(self) -> RunInput:
+        if not self.reference_images:
+            raise ValueError("RunInput requires at least one reference_image path")
+        return self
 
 
 class IterateRequest(BaseModel):
