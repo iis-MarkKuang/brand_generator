@@ -27,8 +27,15 @@ Rules:
 - Output exactly one entry per requested type, in the order given.
 - Every `flux_prompt` MUST embed at least 2 palette hex tokens (e.g. `#3B2417`) drawn
   from the brand DNA, plus the brand name where relevant. Keep each ≤ 600 chars.
+- **Do NOT include text/typography rendering instructions in `flux_prompt`**.
+  FLUX cannot render legible text — asking for "headline in Playfair Display" or
+  "body text in Noto Sans SC" will produce garbled artifacts. Describe typography
+  in the `composition` field only, as a note for post-processing.
 - Every asset needs a `negative_prompt` (e.g.
   `"photorealistic, 3d, neon, cluttered, gradient mesh, watermark, text errors"`).
+  Note: FLUX negative prompts have limited effect on style; emphasize the desired
+  style positively in `flux_prompt` instead (e.g. "inkwash painting style" rather
+  than just negative-prompting "photorealistic").
 - `size` longest side ≤ 1344. Defaults: logo `[1024,1024]`, social_square `[1024,1024]`,
   product_mockup `[1024,1024]`, hero_banner `[1344,768]`, business_card `[1024,576]`.
 - `uses_pulid=true` ONLY for mascot/identity assets that must preserve a reference face

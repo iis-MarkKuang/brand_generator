@@ -338,9 +338,14 @@ async def rewrite_prompt(
             "Current asset spec:\n"
             f"{asset_spec.model_dump_json(indent=2)}\n\n"
             f"Critic feedback to address: {critic_feedback}\n\n"
-            "Return ONLY JSON: "
-            '{"flux_prompt": "<=600 chars, keep >=2 palette hex tokens, address the feedback>", '
-            '"negative_prompt": "<string>"}.'
+            "Rewrite the flux_prompt to address the feedback. Rules:\n"
+            "- Keep the overall composition and mood — only change what the feedback asks.\n"
+            "- Do NOT add text/typography rendering instructions (FLUX can't render text).\n"
+            "- Keep at least 2 palette hex tokens from the brand DNA.\n"
+            "- Emphasize the desired style POSITIVELY (e.g. 'inkwash painting style')\n"
+            "  rather than relying on the negative prompt.\n"
+            "- Return ONLY JSON: "
+            '{"flux_prompt": "<=600 chars>", "negative_prompt": "<string>"}.'
         )
         messages = [
             {"role": "system", "content": await to_thread(_load_system_prompt)},

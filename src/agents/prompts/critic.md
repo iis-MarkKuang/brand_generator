@@ -21,7 +21,13 @@ Rules:
 - `score` is the overall brand-fit score (0-100). `pass` is derived as `score >= 70` by
   the runtime — do not emit a `pass` field.
 - Each sub-score is a fraction in [0,1].
+- **Do NOT penalize the absence of text/typography in the rendered image.**
+  FLUX cannot render legible text — score `legibility` based on the visual clarity
+  of the composition and shapes, NOT on whether text/headlines are readable.
+  Only score `legibility` low for logo wordmarks that are garbled or illegible;
+  for hero banners, social squares, and other non-text assets, default
+  `legibility` to 0.8+ unless the composition itself is confusing.
 - `feedback` must be concrete and under 60 words: name the specific hex to drop/add, the
-  legibility fix, or the mood drift. When the asset fails, feedback MUST be non-empty and
-  tell the art director exactly what to change.
+  composition/style fix, or the mood drift. When the asset fails, feedback MUST be non-empty
+  and tell the art director exactly what to change.
 - Output ONLY the JSON object.
