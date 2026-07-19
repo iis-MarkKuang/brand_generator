@@ -51,13 +51,13 @@ class Settings(BaseSettings):
     )
 
     # --- Stepfun (阶跃星辰) ---
-    stepfun_api_key: Annotated[str, Field(repr=False)]
+    stepfun_api_key: Annotated[str, Field(default="", repr=False)]
     stepfun_base_url: str = "https://api.stepfun.com/v1"
     stepfun_vlm_model: str = "step-3.7-flash"
     stepfun_text_model: str = "step-2-mini"
 
     # --- NVIDIA developer API (NIM cloud fallback / routing) ---
-    nvidia_api_key: Annotated[str, Field(repr=False)]
+    nvidia_api_key: Annotated[str, Field(default="", repr=False)]
     nvidia_nim_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_nim_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     # CP-013 local<->cloud reasoning router strategy:
@@ -65,11 +65,11 @@ class Settings(BaseSettings):
     routing_strategy: str = "local-first"
 
     # --- Hugging Face (NeMo LoRA leg) ---
-    hf_token: Annotated[str, Field(repr=False)]
+    hf_token: Annotated[str, Field(default="", repr=False)]
     hf_hub_offline: bool = True
 
     # --- Telegram ---
-    telegram_bot_token: Annotated[str, Field(repr=False)]
+    telegram_bot_token: Annotated[str, Field(default="", repr=False)]
 
     # --- NVIDIA local stack (DGX Spark) ---
     ollama_host: str = "http://127.0.0.1:11434"
@@ -129,6 +129,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _reject_placeholders(self) -> Settings:
+        # When ALL secrets are empty (CI / test mode without .env), skip
+        # placeholder validation so the module-level `app = create_app()`
+        # in api.py can import successfully.
+        if all(not getattr(self, name) for name in _REQUIRED_SECRETS):
+            return self
         bad = [
             name
             for name in _REQUIRED_SECRETS
