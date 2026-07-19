@@ -154,7 +154,8 @@ def find_latest_assembled_run() -> str | None:
                 rid = str(r.get("run_id", "")).strip()
                 return rid or None
         return None
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        log(f"find_latest_assembled_run failed: {exc}")
         return None
 
 

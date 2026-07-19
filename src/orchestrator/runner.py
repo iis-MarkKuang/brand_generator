@@ -370,7 +370,7 @@ async def iterate_run(
 
     run_dir = RunDir(Path("runs"), new_run_id).ensure()
     # Copy the brand DNA to the new run dir (so the assembler + consistency can find it)
-    shutil.copyfile(dna_path, run_dir.path / "brand_dna.json")
+    await to_thread(shutil.copyfile, dna_path, run_dir.path / "brand_dna.json")
     stats = OptimizationStats(brand_dna_cache_hit=True)
 
     owns_stepfun = stepfun_client is None
@@ -434,7 +434,7 @@ async def iterate_run(
                 if prev_png.exists():
                     dst = run_dir.kit_asset_path(f"{aid}.png")
                     dst.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(prev_png, dst)
+                    await to_thread(shutil.copyfile, prev_png, dst)
                     kit_assets.append(
                         KitAsset(
                             id=aid,
