@@ -258,3 +258,24 @@ async def test_runner_kit_manifest_validates(fake_settings, tmp_path) -> None:
     assert rt.run_id == "test-run-001"
     assert rt.optimization_stats.vram_swaps >= 1
     assert isinstance(rt.optimization_stats, OptimizationStats)
+
+
+@pytest.mark.asyncio
+async def test_runner_fail_fast_skips_remaining(fake_settings, tmp_path) -> None:
+    """CP-020 fail-fast: if one asset fails, remaining assets are skipped."""
+    # logo passes, hero_banner fails (max_retries=0 so 1 attempt), social_square should be skipped
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo"})
+    kit = await _run(
+        _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+        fake_settings,
+        tmp_path,
+        fns,
+    )
+    statuses = {a.id: a.status for a in kit.assets}
+    assert statuses["logo"] == "approved"
+    assert statuses["hero_banner"] == "failed"
+    # social_square should be skipped (fail-fast), not processed
+    assert statuses["social_square"] == "failed"
+    assert "fail-fast" in kit.assets[2].error or "skipped" in kit.assets[2].error
+    # Only 2 assets were actually rendered (logo + hero_banner), not social_square
+    assert kit.optimization_stats.total_renders == 2

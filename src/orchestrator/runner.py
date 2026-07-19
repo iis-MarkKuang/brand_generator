@@ -201,6 +201,8 @@ async def run_pipeline(
         manifest = _resolve_reference_indices(manifest, ref_images)
 
         # 3 — per-asset generate→critique→refine loop.
+        # Fail-fast: if any asset fails (after all retries), stop immediately
+        # and mark remaining assets as skipped — don't waste GPU time.
         for idx, spec in enumerate(manifest.assets):
             bail_reason = ""
             if cancel_event is not None and cancel_event.is_set():
@@ -223,26 +225,45 @@ async def run_pipeline(
                     )
                 break
 
-            kit_assets.append(
-                await _process_asset(
-                    spec,
-                    dna,
-                    run_dir,
-                    s,
-                    orch,
-                    sc,
-                    router,
-                    cc,
-                    stats,
-                    run_input.options.max_retries_per_asset,
-                    cancel_event,
-                    t0,
-                    generate,
-                    critic,
-                    rewrite,
-                    log,
-                )
+            kit_asset = await _process_asset(
+                spec,
+                dna,
+                run_dir,
+                s,
+                orch,
+                sc,
+                router,
+                cc,
+                stats,
+                run_input.options.max_retries_per_asset,
+                cancel_event,
+                t0,
+                generate,
+                critic,
+                rewrite,
+                log,
             )
+            kit_assets.append(kit_asset)
+
+            # Fail-fast: if this asset failed, skip all remaining assets.
+            if kit_asset.status == "failed":
+                failed_id = kit_asset.id
+                log.warning(
+                    "runner.fail_fast",
+                    failed_asset=failed_id,
+                    skipped=[a.id for a in manifest.assets[idx + 1 :]],
+                )
+                for rem in manifest.assets[idx + 1 :]:
+                    kit_assets.append(
+                        KitAsset(
+                            id=rem.id,
+                            type=rem.type,
+                            path="",
+                            status="failed",
+                            error=f"skipped: asset '{failed_id}' failed (fail-fast)",
+                        )
+                    )
+                break
 
         # 4 — Assemble the kit (always reached on normal/cap/timeout/cancel paths).
         total_latency = time.perf_counter() - t0
