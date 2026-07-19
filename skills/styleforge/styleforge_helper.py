@@ -25,10 +25,12 @@ Environment:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import mimetypes
 import os
+import shutil
 import sys
 import time
 import urllib.error
@@ -407,7 +409,7 @@ def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide:
     send_telegram_text(summary)
 
 
-def _debounce_lock(cooldown_s: int = 75) -> bool:
+def _debounce_lock(cooldown_s: int = 180) -> bool:
     """Prevent rapid-fire re-invocation (agent self-loop protection).
 
     Returns True if we should PROCEED, False if a recent run is still in
@@ -421,6 +423,57 @@ def _debounce_lock(cooldown_s: int = 75) -> bool:
     with contextlib.suppress(OSError):
         stamp.write_text(str(time.time()))
     return True
+
+
+def _brief_dedup(brief: str) -> bool:
+    """Skip if the brief is identical to the last one (agent self-echo guard).
+
+    Returns True if we should PROCEED, False if the brief matches the
+    previous invocation (the agent is echoing its own output).
+    """
+    brief_hash = hashlib.sha256(brief.encode("utf-8"), usedforsecurity=False).hexdigest()
+    stamp = Path("/tmp/styleforge_helper_last_brief.hash")
+    with contextlib.suppress(OSError):
+        if stamp.is_file() and stamp.read_text().strip() == brief_hash:
+            return False
+    with contextlib.suppress(OSError):
+        stamp.write_text(brief_hash)
+    return True
+
+
+def _consecutive_run_cap(max_runs: int = 3, window_s: int = 600) -> bool:
+    """Refuse if too many runs were triggered in the last window without a fresh image.
+
+    Returns True if we should PROCEED, False if the cap is exceeded.
+    Resets the counter when called with a fresh user image (not iterate).
+    """
+    log_file = Path("/tmp/styleforge_helper_run_count.log")
+    now = time.time()
+    cutoff = now - window_s
+    timestamps: list[float] = []
+    with contextlib.suppress(OSError):
+        if log_file.is_file():
+            timestamps = [
+                float(line.strip())
+                for line in log_file.read_text().splitlines()
+                if line.strip() and float(line.strip()) > cutoff
+            ]
+    if len(timestamps) >= max_runs:
+        return False
+    timestamps.append(now)
+    with contextlib.suppress(OSError):
+        log_file.write_text("\n".join(str(t) for t in timestamps[-max_runs * 2 :]))
+    return True
+
+
+def _consume_inbound_image(image: Path) -> None:
+    """Move a used inbound image to the archive so it can't be re-picked."""
+    if not INBOUND_DIR:
+        return
+    archive = INBOUND_DIR.parent / "inbound.archive"
+    with contextlib.suppress(OSError):
+        archive.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(image), str(archive / image.name))
 
 
 def main() -> int:
@@ -438,8 +491,14 @@ def main() -> int:
     # invocation to avoid the bot spamming duplicate kits when the agent
     # echoes its own output back as a new user message.
     if not _debounce_lock():
-        log("skipped: another run was started < 75s ago (self-loop guard)")
+        log("skipped: another run was started < 180s ago (self-loop guard)")
         print("⏳ 上一轮生成刚完成，请稍等片刻再发送新消息。", flush=True)
+        return 0
+
+    # Brief dedup: if the agent echoes its own output verbatim, skip.
+    if not _brief_dedup(brief):
+        log("skipped: brief identical to last invocation (self-echo guard)")
+        print("⏳ 检测到重复请求，请发送新的内容。", flush=True)
         return 0
 
     log(f"OPENCLAW_HOME = {OPENCLAW_HOME or '<unset>'}")
@@ -470,6 +529,13 @@ def main() -> int:
     else:
         log(f"reference image -> {image}")
 
+    # Consecutive run cap: refuse if too many runs in the last 10 min
+    # without a fresh user image (agent self-loop at slower rate).
+    if not _consecutive_run_cap():
+        log("skipped: consecutive run cap exceeded (3 runs / 10 min)")
+        print("⏳ 近期生成次数过多，请稍后再试。", flush=True)
+        return 0
+
     brand_name = derive_brand_name(brief)
     log(f"brand_name = {brand_name!r}, assets = {assets!r}, iterate={is_iterate}")
 
@@ -482,6 +548,8 @@ def main() -> int:
         run_id = post_iterate(prev_id, brief)
     else:
         key_log("开始生成品牌视觉识别包…")
+        # Consume the inbound image so a self-loop can't re-pick it.
+        _consume_inbound_image(image)
         run_id = post_run(brief, image, brand_name, assets)
     key_log(f"Run {run_id} 已启动，等待流水线完成…")
 
