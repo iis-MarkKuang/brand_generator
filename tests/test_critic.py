@@ -179,3 +179,91 @@ async def test_critic_structured_failure_never_crashes(fake_settings, tmp_path) 
     assert res.score == 0
     assert res.feedback.startswith("critic_failed")
     await c.aclose()
+
+
+# ---- CP-017: deep reasoning chain ------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_critic_deep_reasoning_enriches_scoring(fake_settings, tmp_path) -> None:
+    """When critic_deep_reasoning=True + attempt<2, the 3-step chain runs and the
+    visual_description + extracted_palette are attached to the CriticResult."""
+    fake_settings.critic_deep_reasoning = True
+    call_idx = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call_idx["n"] += 1
+        # call 1: _deep_describe → returns a description string (JSON-wrapped by chat_vlm)
+        # call 2: _deep_extract_palette → returns a JSON array of hex strings
+        # call 3: scoring → returns the scores object
+        if call_idx["n"] == 1:
+            return httpx.Response(
+                200,
+                json=_completion(json.dumps({"description": "warm earthy tones, serif wordmark"})),
+            )
+        if call_idx["n"] == 2:
+            return httpx.Response(
+                200, json=_completion(json.dumps(["#3B2417", "#F3E9D8", "#C26B3C"]))
+            )
+        return httpx.Response(200, json=_completion(json.dumps(_scores(78, "good palette match"))))
+
+    png = _png(tmp_path)
+    run = RunDir(tmp_path / "runs", "test-critic-deep-001").ensure()
+    c = _client(handler, fake_settings)
+    res = await critic_asset(
+        png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c
+    )
+    assert res.score == 78 and res.pass_ is True
+    assert res.visual_description != ""
+    assert res.extracted_palette == ["#3B2417", "#F3E9D8", "#C26B3C"]
+    assert call_idx["n"] == 3  # describe + palette + score
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_critic_deep_reasoning_skipped_on_recheck(fake_settings, tmp_path) -> None:
+    """Deep reasoning only runs on attempt<2; attempt=2 skips the chain (token economy)."""
+    fake_settings.critic_deep_reasoning = True
+    call_idx = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call_idx["n"] += 1
+        return httpx.Response(200, json=_completion(json.dumps(_scores(72))))
+
+    png = _png(tmp_path)
+    run = RunDir(tmp_path / "runs", "test-critic-deep-002").ensure()
+    c = _client(handler, fake_settings)
+    res = await critic_asset(
+        png, SPEC, DNA, run_dir=run, attempt=2, settings=fake_settings, client=c
+    )
+    # only the scoring call runs (no describe/palette on recheck)
+    assert call_idx["n"] == 1
+    assert res.visual_description == ""
+    assert res.extracted_palette == []
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_critic_deep_reasoning_survives_step_failure(fake_settings, tmp_path) -> None:
+    """If a deep step (describe/palette) fails, scoring still proceeds with empty enrichment."""
+    fake_settings.critic_deep_reasoning = True
+    call_idx = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        call_idx["n"] += 1
+        if call_idx["n"] <= 2:
+            # deep steps return garbage → _deep_* helpers catch and return ""
+            return httpx.Response(500, text="boom")
+        return httpx.Response(200, json=_completion(json.dumps(_scores(74))))
+
+    png = _png(tmp_path)
+    run = RunDir(tmp_path / "runs", "test-critic-deep-003").ensure()
+    c = _client(handler, fake_settings)
+    res = await critic_asset(
+        png, SPEC, DNA, run_dir=run, attempt=1, settings=fake_settings, client=c
+    )
+    # deep steps failed gracefully; scoring still succeeded
+    assert res.score == 74
+    assert res.visual_description == ""
+    assert res.extracted_palette == []
+    await c.aclose()

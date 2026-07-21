@@ -406,6 +406,9 @@ async def iterate_run(
     comfyui_client: ComfyUIClient | None = None,
     orchestrator: ModelOrchestrator | None = None,
     cancel_event: asyncio.Event | None = None,
+    generate_fn: GenerateFn | None = None,
+    critic_fn: CriticFn | None = None,
+    rewrite_fn: RewriteFn | None = None,
 ) -> KitManifest:
     """CP-019: conversational design iteration.
 
@@ -418,7 +421,7 @@ async def iterate_run(
     log = _log.bind(agent="runner", run_id=new_run_id, prev_run_id=prev_run_id, mode="iterate")
     t0 = time.perf_counter()
 
-    prev_dir = RunDir(Path("runs"), prev_run_id)
+    prev_dir = RunDir(Path(s.runs_root), prev_run_id)
     dna_path = prev_dir.path / "brand_dna.json"
     manifest_path = prev_dir.manifest_path()  # asset_manifest.json
     kit_manifest_path = prev_dir.kit_manifest_path()
@@ -440,7 +443,7 @@ async def iterate_run(
 
     log.info("iterate.loaded", prev_approved=len(approved_ids), rerender=len(rerender_ids))
 
-    run_dir = RunDir(Path("runs"), new_run_id).ensure()
+    run_dir = RunDir(Path(s.runs_root), new_run_id).ensure()
     # Copy the brand DNA to the new run dir (so the assembler + consistency can find it)
     await to_thread(shutil.copyfile, dna_path, run_dir.path / "brand_dna.json")
     stats = OptimizationStats(brand_dna_cache_hit=True)
@@ -454,6 +457,9 @@ async def iterate_run(
     nim = NimClient(s)
     orch = orchestrator or ModelOrchestrator(run_dir, settings=s, ollama=oc, comfyui=cc)
     router = ReasonRouter(s, ollama=oc, nim=nim, on_routing=orch.record_routing)
+    generate = generate_fn or generate_asset
+    critic = critic_fn or critic_asset
+    rewrite = rewrite_fn or rewrite_prompt
 
     kit_assets: list[KitAsset] = []
     new_specs: list[AssetSpec] = []
@@ -470,9 +476,7 @@ async def iterate_run(
                 await orch.request_vram("ollama", reason=f"iterate:{aid}")
                 orch.begin_reasoning()
                 try:
-                    new_spec = await rewrite_prompt(
-                        orig_spec, request.feedback, settings=s, client=router
-                    )
+                    new_spec = await rewrite(orig_spec, request.feedback, settings=s, client=router)
                 finally:
                     orch.end_reasoning()
                 _bump_routing_stats(router, stats)
@@ -494,9 +498,9 @@ async def iterate_run(
                         1,
                         cancel_event,
                         t0,  # max_retries=1 in iteration mode
-                        generate_asset,
-                        critic_asset,
-                        rewrite_prompt,
+                        generate,
+                        critic,
+                        rewrite,
                         log,
                     )
                 )

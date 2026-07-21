@@ -275,6 +275,7 @@ def create_app(
 
         async def gen() -> Any:
             sent_events = 0
+            sent_assets: set[str] = set()
             while True:
                 if await request.is_disconnected():
                     return
@@ -282,9 +283,11 @@ def create_app(
                 for ev in evs[sent_events:]:
                     yield f"data: {json.dumps(_allowlist(ev))}\n\n"
                 sent_events = len(evs)
-                # asset-ready events
+                # asset-ready events — only emit each asset once (no flooding)
                 for png in sorted(rd.assets.glob("*.png")):
-                    yield f"data: {json.dumps({'event': 'asset', 'asset_id': png.stem})}\n\n"
+                    if png.stem not in sent_assets:
+                        sent_assets.add(png.stem)
+                        yield f"data: {json.dumps({'event': 'asset', 'asset_id': png.stem})}\n\n"
                 task = reg.runs.get(run_id)
                 done = task is not None and task.done()
                 if done:

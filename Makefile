@@ -2,7 +2,7 @@ SHELL := /bin/bash
 PYTHON := uv run python
 FRONTEND_DIR := frontend
 
-.PHONY: deps up down run-demo lint typecheck test check-secrets validate-env clean
+.PHONY: deps up down restart status run-demo lint typecheck test check-secrets validate-env clean
 
 deps: ## Install python + frontend deps
 	uv sync
@@ -10,16 +10,22 @@ deps: ## Install python + frontend deps
 		echo ">> installing frontend deps"; cd $(FRONTEND_DIR) && npm ci || npm install; \
 	else echo ">> frontend not initialized yet (skipped; comes in CP-011)"; fi
 
-up: ## Start FastAPI backend + Vite gallery (CP-010/CP-011)
-	@echo ">> starting FastAPI on :8000 (logs: /tmp/styleforge_api.log)"
-	@cd . && nohup uv run uvicorn src.orchestrator.api:app --host 0.0.0.0 --port 8000 --log-level warning > /tmp/styleforge_api.log 2>&1 &
-	@echo ">> starting Vite gallery on :5173 (logs: /tmp/styleforge_vite.log)"
-	@cd $(FRONTEND_DIR) && nohup npm run dev > /tmp/styleforge_vite.log 2>&1 &
-	@sleep 3 && echo ">> up: backend http://127.0.0.1:8000  gallery http://127.0.0.1:5173"
+up: ## Start FastAPI backend + Vite gallery (systemd-managed, auto-restart)
+	@systemctl --user start fastapi vite
+	@sleep 2 && echo ">> up: backend http://127.0.0.1:8000  gallery http://127.0.0.1:5173"
+	@echo ">> logs: journalctl --user -u fastapi -f   (or -u vite)"
 
 down: ## Stop FastAPI + Vite
-	@fuser -k 8000/tcp 2>/dev/null || true
-	@fuser -k 5173/tcp 2>/dev/null || true
+	@systemctl --user stop fastapi vite
+
+restart: ## Restart FastAPI + Vite (pick up code changes)
+	@systemctl --user restart fastapi vite
+	@sleep 2 && echo ">> restarted: backend :8000  gallery :5173"
+
+status: ## Show status of FastAPI + Vite units
+	@systemctl --user status fastapi --no-pager -n 5 || true
+	@echo "---"
+	@systemctl --user status vite --no-pager -n 5 || true
 
 run-demo: check-secrets validate-env ## Run a sample pipeline end-to-end
 	$(PYTHON) tools/run_pipeline.py --brand "Ember & Oat" \

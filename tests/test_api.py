@@ -275,6 +275,66 @@ async def test_sse_streams_events_then_closes(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_sse_does_not_flood_duplicate_asset_events(tmp_path) -> None:
+    """Regression: the SSE stream must emit each asset event at most once.
+
+    The old gen() re-globbed rd/assets/*.png every 250ms and yielded an `asset`
+    event for each on every loop iteration, flooding the client with duplicates.
+    This test uses a slow mock that writes the asset PNG early then stays
+    in-flight so the SSE poller iterates multiple times with the png present.
+    """
+    s = _settings(tmp_path)
+
+    async def _slow_pipe(run_input, *, settings):
+        rd = RunDir(settings.runs_root, run_input.run_id).ensure()
+        # Write the asset + orchestrator log early, BEFORE assembling the kit,
+        # so the SSE poller sees the png while the task is still in-flight.
+        rd.orchestrator_log_path().write_text(
+            json.dumps({"run_id": run_input.run_id, "events": [{"t": "x", "action": "render"}]})
+        )
+        rd.asset_path("logo", 1).write_bytes(_png_bytes())
+        await asyncio.sleep(1.5)  # stay in-flight so SSE loops multiple times
+        rd.kit_asset_path("logo.png").write_bytes(_png_bytes())
+        rd.kit_asset_path("brand_guide.md").write_text("# Brand\n")
+        kit = KitManifest(
+            run_id=run_input.run_id,
+            brand_name=run_input.brand_name,
+            status="complete",
+            assets=[KitAsset(id="logo", type="logo", path="brand_kit/logo.png", status="approved")],
+            palette=["#3B2417"],
+            generated_at=datetime.now(UTC),
+            total_latency_s=1,
+            optimization_stats=OptimizationStats(),
+        )
+        rd.kit_manifest_path().write_text(kit.model_dump_json(indent=2))
+        return kit
+
+    client, app = _client(s, _slow_pipe)
+    try:
+        r = await client.post(
+            "/api/runs", data={"brief": "b"}, files={"image": ("r.png", _png_bytes(), "image/png")}
+        )
+        run_id = r.json()["run_id"]
+        await asyncio.sleep(0.2)  # let the asset png appear
+        asset_events: list[str] = []
+        async with client.stream("GET", f"/api/runs/{run_id}/events") as resp:
+            assert resp.status_code == 200
+            async for line in resp.aiter_lines():
+                if line.startswith("data: "):
+                    ev = json.loads(line[6:])
+                    if ev.get("event") == "asset":
+                        asset_events.append(ev["asset_id"])
+                    if ev.get("event") == "done":
+                        break
+        # Each asset_id must appear at most once (no flooding)
+        assert len(asset_events) == len(set(asset_events)), (
+            f"duplicate asset events: {asset_events}"
+        )
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_iterate_endpoint(tmp_path) -> None:
     """CP-019: POST /api/runs/{id}/iterate starts an iteration run."""
     s = _settings(tmp_path)

@@ -279,3 +279,166 @@ async def test_runner_fail_fast_skips_remaining(fake_settings, tmp_path) -> None
     assert "fail-fast" in kit.assets[2].error or "skipped" in kit.assets[2].error
     # Only 2 assets were actually rendered (logo + hero_banner), not social_square
     assert kit.optimization_stats.total_renders == 2
+
+
+# ---- CP-020: _resolve_reference_indices post-plan hook ------------------ #
+
+
+def _pulid_spec(aid: str, uses_pulid: bool, ref_idx: int | None = None) -> AssetSpec:
+    return AssetSpec(
+        id=aid,
+        type="logo",  # type: ignore[arg-type]
+        size=[1024, 1024],
+        seed=1,
+        flux_prompt=f"{aid} #3B2417 #F3E9D8 Ember & Oat",
+        uses_pulid=uses_pulid,
+        reference_index=ref_idx,
+    )
+
+
+def test_resolve_reference_indices_maps_explicit_index() -> None:
+    """A uses_pulid asset with reference_index=2 gets pulid_reference = images[1]."""
+    from src.orchestrator.runner import _resolve_reference_indices
+
+    manifest = AssetManifest(
+        run_id="r1",
+        assets=[_pulid_spec("logo", uses_pulid=True, ref_idx=2)],
+    )
+    out = _resolve_reference_indices(manifest, ["img1.png", "img2.png", "img3.png"])
+    assert out.assets[0].pulid_reference == "img2.png"
+
+
+def test_resolve_reference_indices_defaults_to_first_image() -> None:
+    """A uses_pulid asset with no reference_index defaults to the first image."""
+    from src.orchestrator.runner import _resolve_reference_indices
+
+    manifest = AssetManifest(
+        run_id="r1",
+        assets=[_pulid_spec("logo", uses_pulid=True, ref_idx=None)],
+    )
+    out = _resolve_reference_indices(manifest, ["img1.png", "img2.png"])
+    assert out.assets[0].pulid_reference == "img1.png"
+
+
+def test_resolve_reference_indices_no_pulid_leaves_unset() -> None:
+    """A non-PuLID asset with reference_index is left without pulid_reference."""
+    from src.orchestrator.runner import _resolve_reference_indices
+
+    manifest = AssetManifest(
+        run_id="r1",
+        assets=[_pulid_spec("logo", uses_pulid=False, ref_idx=2)],
+    )
+    out = _resolve_reference_indices(manifest, ["img1.png", "img2.png"])
+    assert out.assets[0].pulid_reference is None
+    # reference_index is preserved as a semantic annotation
+    assert out.assets[0].reference_index == 2
+
+
+def test_resolve_reference_indices_out_of_range_falls_back() -> None:
+    """reference_index beyond the image count falls back to the first image (PuLID)."""
+    from src.orchestrator.runner import _resolve_reference_indices
+
+    manifest = AssetManifest(
+        run_id="r1",
+        assets=[_pulid_spec("logo", uses_pulid=True, ref_idx=5)],
+    )
+    out = _resolve_reference_indices(manifest, ["img1.png", "img2.png"])
+    # index 5 is out of range (only 2 images) → default to first
+    assert out.assets[0].pulid_reference == "img1.png"
+
+
+def test_resolve_reference_indices_empty_images_noop() -> None:
+    """No reference images → manifest returned unchanged."""
+    from src.orchestrator.runner import _resolve_reference_indices
+
+    manifest = AssetManifest(
+        run_id="r1",
+        assets=[_pulid_spec("logo", uses_pulid=True, ref_idx=1)],
+    )
+    out = _resolve_reference_indices(manifest, [])
+    assert out.assets[0].pulid_reference is None
+
+
+# ---- CP-017: consistency wiring in run_pipeline -------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_runner_consistency_check_runs_on_2plus_approved(fake_settings, tmp_path) -> None:
+    """When >=2 assets are approved, run_pipeline calls check_consistency and
+    embeds the ConsistencyMatrix on the returned KitManifest."""
+
+    from src.common.schemas import ConsistencyMatrix
+
+    consistency_called = {"n": 0}
+
+    async def patched_check_consistency(approved_pairs, dna, *, run_dir, settings, client):
+        consistency_called["n"] += 1
+        return ConsistencyMatrix(
+            overall_score=0.88,
+            dimensions=[],
+            summary="consistent",
+            asset_ids=[a[0] for a in approved_pairs],
+        )
+
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "hero_banner", "social_square"})
+    analyze, plan, generate, critic, rewrite = fns
+    fake_settings.runs_root = str(tmp_path / "runs")
+    # Patch check_consistency in the runner module
+    import src.orchestrator.runner as runner_mod
+
+    orig = runner_mod.check_consistency
+    runner_mod.check_consistency = patched_check_consistency  # type: ignore[assignment]
+    try:
+        kit = await run_pipeline(
+            _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+            settings=fake_settings,
+            ollama_client=MockOllama(),
+            comfyui_client=MockComfyUI(),
+            analyze_fn=analyze,
+            plan_fn=plan,
+            generate_fn=generate,
+            critic_fn=critic,
+            rewrite_fn=rewrite,
+        )
+    finally:
+        runner_mod.check_consistency = orig  # type: ignore[assignment]
+
+    assert consistency_called["n"] == 1
+    assert kit.consistency is not None
+    assert kit.consistency.overall_score == pytest.approx(0.88)
+    assert kit.consistency.asset_ids == ["logo", "hero_banner", "social_square"]
+
+
+@pytest.mark.asyncio
+async def test_runner_consistency_skipped_on_single_approved(fake_settings, tmp_path) -> None:
+    """When only 1 asset is approved, check_consistency is NOT called."""
+    consistency_called = {"n": 0}
+
+    async def patched_check_consistency(approved_pairs, dna, *, run_dir, settings, client):
+        consistency_called["n"] += 1
+        return None  # type: ignore[return-value]
+
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo"})  # only logo passes
+    analyze, plan, generate, critic, rewrite = fns
+    fake_settings.runs_root = str(tmp_path / "runs")
+    import src.orchestrator.runner as runner_mod
+
+    orig = runner_mod.check_consistency
+    runner_mod.check_consistency = patched_check_consistency  # type: ignore[assignment]
+    try:
+        kit = await run_pipeline(
+            _run_input(["logo", "hero_banner"], max_retries=0),
+            settings=fake_settings,
+            ollama_client=MockOllama(),
+            comfyui_client=MockComfyUI(),
+            analyze_fn=analyze,
+            plan_fn=plan,
+            generate_fn=generate,
+            critic_fn=critic,
+            rewrite_fn=rewrite,
+        )
+    finally:
+        runner_mod.check_consistency = orig  # type: ignore[assignment]
+
+    assert consistency_called["n"] == 0
+    assert kit.consistency is None

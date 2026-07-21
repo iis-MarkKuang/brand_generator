@@ -12,8 +12,8 @@ StyleForge 在 DGX Spark 上运行以下核心服务：
 |------|------|------|----------|
 | mihomo 代理 | `mihomo` | 7890 (mixed), TUN | systemd user unit `mihomo.service` |
 | OpenClaw gateway | `openclaw gateway run` | 9000 | systemd user unit `openclaw.service` |
-| FastAPI orchestrator | `uvicorn src.orchestrator.api:app` | 8000 | 手动 / tmux |
-| Vite 前端 | `npm run dev` | 5173 | 手动 / tmux |
+| FastAPI orchestrator | `uvicorn src.orchestrator.api:app` | 8000 | systemd user unit `fastapi.service` |
+| Vite 前端 | `npm run dev` | 5173 | systemd user unit `vite.service` |
 | Ollama | `ollama serve` | 11434 | workshop bundle 脚本 |
 | ComfyUI | `python main.py` | 8200 | workshop bundle 脚本 |
 
@@ -70,13 +70,56 @@ systemctl --user start openclaw
 
 ## 3. 查看 FastAPI Orchestrator 日志
 
-FastAPI 后端通常在 tmux 会话或前台终端中运行。
+FastAPI 后端现已配置为 systemd user service（`fastapi.service`），日志输出到 **journald**，崩溃后会自动重启（`Restart=on-failure`，5s 后重启）。
 
-### 3.1 如果在前台终端运行
+### 3.1 实时日志（推荐）
 
-直接查看该终端输出即可。日志包含每个 agent 的调用、Critic 评分、Model Orchestrator 的 VRAM 调度事件等。
+```bash
+# 实时跟踪 FastAPI 日志（Ctrl+C 退出）
+journalctl --user -u fastapi -f
 
-### 3.2 查看运行中的 run 日志
+# 只看最近 100 行
+journalctl --user -u fastapi -n 100 --no-pager
+
+# 只看今天的日志
+journalctl --user -u fastapi --since today --no-pager
+
+# 只看错误/警告
+journalctl --user -u fastapi -p err --no-pager
+```
+
+### 3.2 服务状态 / 重启
+
+```bash
+# 查看运行状态、PID、内存、最近崩溃记录
+systemctl --user status fastapi
+
+# 查看是否开机自启
+systemctl --user is-enabled fastapi
+
+# 重启（修改代码后用）
+systemctl --user restart fastapi
+
+# 停止 / 启动
+systemctl --user stop fastapi
+systemctl --user start fastapi
+```
+
+### 3.3 验证崩溃自动恢复
+
+```bash
+# 找到 uvicorn 的 PID
+systemctl --user show fastapi -p MainPID --value
+
+# 杀掉进程（systemd 会在 5s 内自动拉起新进程）
+kill <PID>
+
+# 确认服务已自动恢复
+sleep 6 && systemctl --user is-active fastapi
+# 期望: active
+```
+
+### 3.4 查看运行中的 run 日志
 
 每次 run 的详细事件都记录在 `runs/<run_id>/orchestrator_log.json`：
 
@@ -98,7 +141,27 @@ cat runs/<run_id>/orchestrator_log.json | python3 -m json.tool | head -50
 
 ---
 
-## 4. 查看 mihomo 代理日志
+## 4. 查看 Vite 前端日志
+
+Vite gallery 现已配置为 systemd user service（`vite.service`），日志输出到 **journald**。
+
+```bash
+# 实时跟踪 Vite 日志
+journalctl --user -u vite -f
+
+# 最近 50 行
+journalctl --user -u vite -n 50 --no-pager
+
+# 状态 / 重启
+systemctl --user status vite
+systemctl --user restart vite
+```
+
+> 注意：Vite 默认监听 `0.0.0.0:5173`，访问 `http://<dgx-ip>:5173`。
+
+---
+
+## 5. 查看 mihomo 代理日志
 
 ```bash
 # 实时日志
@@ -118,7 +181,7 @@ curl -x http://127.0.0.1:7890 -s -o /dev/null -w "%{http_code}\n" https://api.te
 
 ---
 
-## 5. 查看 Ollama / ComfyUI 日志
+## 6. 查看 Ollama / ComfyUI 日志
 
 这两个服务由 workshop bundle 脚本管理，通常在独立终端中运行：
 
@@ -132,7 +195,7 @@ tail -f /home/Developer/build_a_claw_workshop-bundle/comfyui-app/ComfyUI/comfyui
 
 ---
 
-## 6. 常见问题排查
+## 7. 常见问题排查
 
 ### Bot 没有响应
 
@@ -157,7 +220,7 @@ tail -f /home/Developer/build_a_claw_workshop-bundle/comfyui-app/ComfyUI/comfyui
 
 ---
 
-## 7. 一键诊断脚本
+## 8. 一键诊断脚本
 
 ```bash
 #!/bin/bash
@@ -166,7 +229,10 @@ systemctl --user is-active mihomo && curl -x http://127.0.0.1:7890 -s -o /dev/nu
 echo "=== openclaw ==="
 systemctl --user is-active openclaw
 echo "=== fastapi ==="
+systemctl --user is-active fastapi
 curl -s http://127.0.0.1:8000/api/health
+echo "=== vite ==="
+systemctl --user is-active vite
 echo "=== ollama ==="
 curl -s http://127.0.0.1:11434/api/tags | python3 -c "import sys,json; [print(m['name']) for m in json.load(sys.stdin)['models']]" 2>/dev/null
 echo "=== comfyui ==="
@@ -175,26 +241,28 @@ curl -s http://127.0.0.1:8200/system_stats | python3 -c "import sys,json; d=json
 
 ---
 
-## 8. systemd user service 配置
+## 9. systemd user service 配置
 
-OpenClaw gateway 的 systemd unit 文件位于：
+StyleForge 的所有常驻服务都通过 systemd user unit 管理，unit 文件位于：
 
 ```
-~/.config/systemd/user/openclaw.service
+~/.config/systemd/user/mihomo.service     # 代理
+~/.config/systemd/user/openclaw.service   # Telegram bot / agent gateway
+~/.config/systemd/user/fastapi.service    # FastAPI orchestrator (:8000)
+~/.config/systemd/user/vite.service       # Vite gallery (:5173)
 ```
 
-关键配置：
-- `StandardOutput=journal` — 日志输出到 journald（可用 journalctl 查看）
-- `Restart=on-failure` — 崩溃后自动重启
-- `After=mihomo.service` — 依赖代理服务
-- `Environment=TELEGRAM_BOT_TOKEN=...` — Telegram bot token
-- `Environment=TELEGRAM_ALLOWED_CHAT_IDS=7538180993` — 允许的 chat ID
+通用关键配置：
+- `StandardOutput=journal` / `StandardError=journal` — 日志输出到 journald（可用 journalctl 查看）
+- `Restart=on-failure` + `RestartSec=5` — 崩溃后 5s 自动重启
+- `EnvironmentFile=/home/Developer/game/.env`（fastapi）— 加载所有 secrets
+- `WantedBy=default.target` — 开机自启（配合 linger）
 
-修改配置后需要 reload：
+修改任意 unit 文件后需要 reload：
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user restart openclaw
+systemctl --user restart fastapi vite openclaw mihomo
 ```
 
 确保用户 linger 已启用（服务在未登录时也能运行）：

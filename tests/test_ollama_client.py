@@ -70,3 +70,82 @@ async def test_ps_lists_loaded(fake_settings) -> None:
     loaded = await c.ps()
     assert loaded == [{"name": "qwen3.6:35b", "size_vram": 1234}]
     await c.aclose()
+
+
+# ---- vram_probe (nvidia-smi subprocess + /api/ps) ------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_vram_probe_parses_nvidia_smi(fake_settings, monkeypatch) -> None:
+    """When nvidia-smi reports real numbers, vram_probe returns total/free in MiB."""
+    import asyncio as _aio
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        class _P:
+            async def communicate(self):
+                return (b"24576, 12000\n", b"")
+
+        return _P()
+
+    monkeypatch.setattr(_aio, "create_subprocess_exec", fake_create_subprocess_exec)
+    # nvidia-smi must be "found" by shutil.which
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "/usr/bin/nvidia-smi" if name == "nvidia-smi" else None
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/ps"
+        return httpx.Response(200, json={"models": []})
+
+    c = _client(handler, fake_settings)
+    probe = await c.vram_probe()
+    assert probe["total_mib"] == 24576
+    assert probe["free_mib"] == 12000
+    assert probe["unified"] is False
+    assert probe["loaded"] == []
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_vram_probe_unified_when_smi_na(fake_settings, monkeypatch) -> None:
+    """When nvidia-smi reports [N/A] (GB10 unified memory), probe returns None + unified=True."""
+    import asyncio as _aio
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        class _P:
+            async def communicate(self):
+                return (b"[N/A], [N/A]\n", b"")
+
+        return _P()
+
+    monkeypatch.setattr(_aio, "create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "/usr/bin/nvidia-smi" if name == "nvidia-smi" else None
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"models": [{"name": "x"}]})
+
+    c = _client(handler, fake_settings)
+    probe = await c.vram_probe()
+    assert probe["total_mib"] is None
+    assert probe["free_mib"] is None
+    assert probe["unified"] is True
+    assert probe["loaded"] == [{"name": "x"}]
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_vram_probe_unified_when_no_smi(fake_settings, monkeypatch) -> None:
+    """When nvidia-smi is not installed, probe returns None + unified=True."""
+    monkeypatch.setattr("shutil.which", lambda name: None)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"models": []})
+
+    c = _client(handler, fake_settings)
+    probe = await c.vram_probe()
+    assert probe["total_mib"] is None
+    assert probe["free_mib"] is None
+    assert probe["unified"] is True
+    await c.aclose()

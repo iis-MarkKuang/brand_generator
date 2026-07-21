@@ -45,6 +45,22 @@ def _load_system_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
+def _extract_content_str(body: dict[str, Any]) -> str:
+    """Pull the assistant message text out of a chat completion body."""
+    try:
+        msg = body["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError):
+        return ""
+    content = msg.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+        )
+    return ""
+
+
 def _build_messages(dna: BrandDna, spec: AssetSpec, image_data_url: str) -> list[dict[str, Any]]:
     palette = ", ".join(c.hex for c in dna.palette)
     user = (
@@ -148,7 +164,13 @@ async def _deep_describe(sc: StepfunClient, data_url: str, effort: str, detail: 
 async def _deep_extract_palette(
     sc: StepfunClient, data_url: str, effort: str, detail: str
 ) -> list[str]:
-    """Step 2 of deep reasoning: VLM extracts dominant colors from the image."""
+    """Step 2 of deep reasoning: VLM extracts dominant colors from the image.
+
+    Uses ``sc.chat`` (raw) rather than ``chat_vlm`` because the palette is a JSON
+    *array* (``["#1A3C2A", ...]``) and ``chat_vlm`` only accepts JSON *objects*.
+    """
+    import re as _re
+
     try:
         msg: list[dict[str, Any]] = [
             {"role": "system", "content": _EXTRACT_PALETTE_PROMPT},
@@ -160,13 +182,20 @@ async def _deep_extract_palette(
                 ],
             },
         ]
-        resp = await sc.chat_vlm(msg, reasoning_effort=effort, image_detail=detail)
-        if isinstance(resp, list):
-            return [str(c) for c in resp][:6]
-        if isinstance(resp, dict):
-            arr = resp.get("palette", resp.get("colors", []))
-            if isinstance(arr, list):
-                return [str(c) for c in arr][:6]
+        body = await sc.chat(
+            model=sc._s.stepfun_vlm_model,  # noqa: SLF001 — same model as chat_vlm
+            messages=msg,
+            reasoning_effort=effort,
+            image_detail=detail,
+        )
+        content = _extract_content_str(body)
+        # Parse a JSON array from the reply (tolerate surrounding prose).
+        m = _re.search(r"\[.*\]", content, _re.S)
+        if not m:
+            return []
+        arr = json.loads(m.group(0))
+        if isinstance(arr, list):
+            return [str(c) for c in arr][:6]
         return []
     except Exception as exc:  # noqa: BLE001 — deep steps are best-effort
         _log.debug("critic.deep_palette_failed", error=str(exc)[:120])

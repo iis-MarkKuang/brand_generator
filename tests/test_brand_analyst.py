@@ -64,6 +64,13 @@ def _make_image(tmp_path: Path) -> Path:
     return p
 
 
+def _make_image_at(path: Path, color: tuple[int, int, int] = (80, 120, 60)) -> Path:
+    """Create a test image at an explicit path with a given color."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (256, 256), color).save(path, format="PNG")
+    return path
+
+
 @pytest.mark.asyncio
 async def test_analyze_brand_valid(fake_settings, tmp_path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -123,4 +130,94 @@ async def test_analyze_brand_cache_hit_skips_vlm(fake_settings, tmp_path) -> Non
     assert dna.brand_name == "Ember & Oat"
     # run file still written from cache
     assert run.brand_dna_path().exists()
+    await c.aclose()
+
+
+# ---- CP-020: multi-image branch ----------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_analyze_brand_multi_image_builds_labeled_messages(fake_settings, tmp_path) -> None:
+    """Multiple reference images → the user message contains 'Image @1:' / 'Image @2:' labels."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured["messages"] = body["messages"]
+        return httpx.Response(200, json=_completion(json.dumps(VALID_DNA)))
+
+    run = RunDir(tmp_path / "runs", "test-run-multi-001").ensure()
+    img1 = _make_image_at(tmp_path / "ref1.png", (80, 120, 60))
+    img2 = _make_image_at(tmp_path / "ref2.png", (200, 100, 40))
+    c = _client(handler, fake_settings)
+    dna = await analyze_brand(
+        "a coffee brand. @1 is logo, @2 is packaging",
+        [img1, img2],
+        "Ember & Oat",
+        run_dir=run,
+        client=c,
+        cache_dir=tmp_path / "cache",
+    )
+    assert dna.brand_name == "Ember & Oat"
+    # The user message content should contain Image @1: and Image @2: labels
+    user_content = captured["messages"][-1]["content"]
+    labels = [p["text"] for p in user_content if p.get("type") == "text"]
+    assert any("@1" in lbl for lbl in labels), f"missing @1 label in {labels}"
+    assert any("@2" in lbl for lbl in labels), f"missing @2 label in {labels}"
+    # Two image_url parts present
+    imgs = [p for p in user_content if p.get("type") == "image_url"]
+    assert len(imgs) == 2
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_analyze_brand_single_image_uses_simple_message(fake_settings, tmp_path) -> None:
+    """Single image → the simple (non-labeled) message branch is used."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured["messages"] = body["messages"]
+        return httpx.Response(200, json=_completion(json.dumps(VALID_DNA)))
+
+    run = RunDir(tmp_path / "runs", "test-run-single-001").ensure()
+    img = _make_image(tmp_path)
+    c = _client(handler, fake_settings)
+    await analyze_brand(
+        "a coffee roaster", img, "Ember & Oat", run_dir=run, client=c, cache_dir=tmp_path / "cache"
+    )
+    user_content = captured["messages"][-1]["content"]
+    # single-image branch: exactly one text part + one image part, no "Image @N:" labels
+    labels = [p["text"] for p in user_content if p.get("type") == "text"]
+    assert not any("@1" in lbl for lbl in labels)
+    imgs = [p for p in user_content if p.get("type") == "image_url"]
+    assert len(imgs) == 1
+    await c.aclose()
+
+
+@pytest.mark.asyncio
+async def test_analyze_brand_multi_image_cache_key_is_composite(fake_settings, tmp_path) -> None:
+    """The cache key for multi-image is composite over all image bytes (brand_dna_cache_key_multi)."""
+    from src.agents.brand_analyst import brand_dna_cache_key_multi
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_completion(json.dumps(VALID_DNA)))
+
+    run = RunDir(tmp_path / "runs", "test-run-multi-cache").ensure()
+    img1 = _make_image_at(tmp_path / "ref1.png", (80, 120, 60))
+    img2 = _make_image_at(tmp_path / "ref2.png", (200, 100, 40))
+    cache_dir = tmp_path / "cache"
+    c = _client(handler, fake_settings)
+
+    # First call populates the cache
+    await analyze_brand(
+        "brief", [img1, img2], "Ember & Oat", run_dir=run, client=c, cache_dir=cache_dir
+    )
+    # The cache file should exist under the composite key
+    key = brand_dna_cache_key_multi("brief", [img1.read_bytes(), img2.read_bytes()])
+    assert (cache_dir / f"{key}.json").exists()
+
+    # Reordering the images produces a different key (order matters)
+    key_rev = brand_dna_cache_key_multi("brief", [img2.read_bytes(), img1.read_bytes()])
+    assert key != key_rev
     await c.aclose()
