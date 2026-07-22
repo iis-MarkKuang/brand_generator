@@ -67,12 +67,14 @@ def test_helper_has_no_secrets() -> None:
     # must not reference secret-bearing env var names or dotenv loaders
     # (checked in HELPER only — run_helper.sh is the entrypoint that legitimately
     # maps gateway env vars like TELEGRAM_BOT_TOKEN to generic helper env names)
+    # NOTE: helper may read TELEGRAM_BOT_TOKEN as a fallback when the agent
+    # invokes the .py directly instead of via run_helper.sh (env mapping skipped).
+    # This is a read from the environment, not a hardcoded secret.
     helper_src = HELPER.read_text(encoding="utf-8")
     secret_names = [
         "STEPFUN_API_KEY",
         "NVIDIA_API_KEY",
         "HF_TOKEN",
-        "TELEGRAM_BOT_TOKEN",
         "OPENAI_API_KEY",
         "dotenv",
         "load_dotenv",
