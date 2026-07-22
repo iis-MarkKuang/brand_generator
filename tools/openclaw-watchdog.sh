@@ -32,6 +32,21 @@ if [ "$ENTRIES" -eq 0 ]; then
     sleep 3
     NEW_PID=$(systemctl --user show openclaw -p MainPID --value)
     echo "$LOG_PREFIX restarted, new PID=$NEW_PID"
-else
-    echo "$LOG_PREFIX ok ($ENTRIES entries in last ${STALE_MINUTES}min)"
+    exit 0
 fi
+
+# Also detect "fetch-timeout storm": the gateway is alive and logging, but ALL
+# recent entries are fetch-timeout errors (the Telegram polling loop is stuck
+# retrying a dead proxy connection). If every log line in the window is a
+# fetch-timeout, the gateway is effectively hung — restart it.
+TIMEOUT_ENTRIES=$(journalctl --user -u openclaw --since "$JOURNAL_SINCE" --no-pager 2>/dev/null | grep -c "fetch-timeout")
+if [ "$ENTRIES" -gt 0 ] && [ "$TIMEOUT_ENTRIES" -eq "$ENTRIES" ]; then
+    echo "$LOG_PREFIX all $ENTRIES entries are fetch-timeouts — proxy-storm hang, restarting"
+    systemctl --user restart openclaw
+    sleep 3
+    NEW_PID=$(systemctl --user show openclaw -p MainPID --value)
+    echo "$LOG_PREFIX restarted, new PID=$NEW_PID"
+    exit 0
+fi
+
+echo "$LOG_PREFIX ok ($ENTRIES entries in last ${STALE_MINUTES}min, $TIMEOUT_ENTRIES timeouts)"
