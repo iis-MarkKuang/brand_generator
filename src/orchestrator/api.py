@@ -82,6 +82,25 @@ def create_app(
     reg = _Registry()
     pipeline = pipeline_fn or run_pipeline
 
+    # Auto-fail stale runs (no kit_manifest) on startup so the gallery
+    # doesn't show them as "pending" forever.
+    _runs_root = Path(s.runs_root).resolve()
+    if _runs_root.exists():
+        for run_dir in _runs_root.iterdir():
+            if not run_dir.is_dir():
+                continue
+            kit_path = run_dir / "brand_kit" / "kit_manifest.json"
+            if not kit_path.exists():
+                kit_path.parent.mkdir(parents=True, exist_ok=True)
+                import json as _json
+                kit_path.write_text(_json.dumps({
+                    "run_id": run_dir.name,
+                    "status": "failed",
+                    "assets": [],
+                    "error": "Run did not complete (pipeline never started or timed out)",
+                }))
+                _log.info("api.startup.stale_run_failed", run_id=run_dir.name)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(s.cors_allowed_origins),
