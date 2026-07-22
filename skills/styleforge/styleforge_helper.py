@@ -264,8 +264,14 @@ def fetch_brand_guide(run_id: str) -> str:
 # ---------------------------------------------------------------------------
 # Telegram direct delivery (optional — only if bot token is in env)
 # ---------------------------------------------------------------------------
-TG_TOKEN = os.environ.get("STYLEFORGE_TG_TOKEN", "").strip()
-TG_CHAT = os.environ.get("STYLEFORGE_TG_CHAT", "").strip().split(",")[0].strip()
+TG_TOKEN = (
+    os.environ.get("STYLEFORGE_TG_TOKEN", "").strip()
+    or os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+)
+TG_CHAT = (
+    os.environ.get("STYLEFORGE_TG_CHAT", "").strip().split(",")[0].strip()
+    or os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS", "").strip().split(",")[0].strip()
+)
 TG_API = "https://api.telegram.org"
 
 
@@ -292,13 +298,22 @@ def _tg_post(
         buf.write(b"\r\n")
     buf.write(f"--{boundary}--\r\n".encode())
     body = buf.getvalue()
+    url = f"{TG_API}/bot{TG_TOKEN}/{endpoint}"
     req = urllib.request.Request(
-        f"{TG_API}/bot{TG_TOKEN}/{endpoint}",
+        url,
         data=body,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+    # Build opener with explicit proxy support for robustness inside OpenClaw.
+    proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or ""
+    if proxy_url:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"https": proxy_url, "http": proxy_url})
+        )
+    else:
+        opener = urllib.request.build_opener()
+    with opener.open(req, timeout=30) as resp:  # noqa: S310
         return json.loads(resp.read().decode("utf-8"))
 
 
