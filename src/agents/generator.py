@@ -2,9 +2,8 @@
 
 Single-flight on the GB10 (module-level lock), with CUDA-dirty auto-recovery
 (restart comfyui-ctl.sh, wait for health, retry once). Workflow JSON is the API
-format derived from the workshop's ``superhero_face_api.json``; the PuLID branch
-(nodes 2-6) is pruned and the KSampler rewired to the raw checkpoint when
-``uses_pulid`` is false.
+format for brand-asset generation; the PuLID branch (nodes 2-6) is pruned and
+the KSampler rewired to the raw checkpoint when ``uses_pulid`` is false.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 # 04 — ComfyUI Workflow Design (FLUX + PuLID)
 
-> Adapted from the workshop's `face_workflow.json` (superhero portrait). The workshop
+> Adapted from the workshop's `face_workflow.json` reference. The workshop
 > workflow is the reference for node IDs, model loader names, and the API JSON format.
 
 ## Workflow variants
