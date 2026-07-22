@@ -76,7 +76,7 @@ def _http_json(req: urllib.request.Request, body: bytes | None = None) -> object
     return raw
 
 
-def latest_inbound_image(max_age_s: int = 300) -> Path | None:
+def latest_inbound_image(max_age_s: int = 600) -> Path | None:
     """Newest image in OpenClaw's inbound boundary (workshop convention).
 
     Only images modified within the last ``max_age_s`` seconds are considered,
@@ -98,12 +98,13 @@ def latest_inbound_image(max_age_s: int = 300) -> Path | None:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def latest_inbound_images(max_n: int = 5, max_age_s: int = 300) -> list[Path]:
+def latest_inbound_images(max_n: int = 5, max_age_s: int = 600) -> list[Path]:
     """Up to ``max_n`` newest inbound images (sorted oldest→newest for stable @N ordering).
 
     CP-020: collects multiple reference images so users can upload several and
     reference them by ``@1``/``@2``/… in their brief. Only images modified within
-    the last ``max_age_s`` seconds are considered.
+    the last ``max_age_s`` seconds are considered (600s = 10min, giving the agent
+    enough time to process the message and invoke the helper).
     """
     if not INBOUND_DIR or not INBOUND_DIR.is_dir():
         return []
