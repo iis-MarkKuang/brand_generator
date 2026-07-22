@@ -1,6 +1,6 @@
 export type AssetType =
   | "logo"
-  | "hero_banner"
+  | "banner"
   | "social_square"
   | "product_mockup"
   | "business_card";

@@ -8,7 +8,7 @@
 #
 # Usage:
 #   run_helper.sh "<brief>"            [assets]
-#   run_helper.sh "<brief>" "logo,social_square,hero_banner"
+#   run_helper.sh "<brief>" "logo,social_square,banner"
 # The reference image is auto-discovered from OpenClaw's inbound directory
 # (newest image), matching the workshop skill convention.
 set -euo pipefail

@@ -111,7 +111,7 @@ def create_app(
         brand_name: Annotated[str, Form(...)] = "Untitled",
         assets: Annotated[
             str, Form(...)
-        ] = "logo,hero_banner,social_square,product_mockup,business_card",
+        ] = "logo,banner,social_square,product_mockup,business_card",
         max_retries: Annotated[int, Form(...)] = 1,
     ) -> JSONResponse:
         """Start a new brand-kit generation run (multipart upload). Returns 202 + run_id.

@@ -13,7 +13,7 @@
 ## Pages / views
 
 1. **Home / New Kit** — brief textarea, brand-name field, drag-drop reference image,
-   asset-type checkboxes (logo, hero banner, social, product mockup, business card),
+   asset-type checkboxes (logo, banner, social, product mockup, business card),
    "Generate Brand Kit" button.
 2. **Run Live View** — real-time stream of agent activity:
    - Brand DNA card (palette swatches, mood chips, typography).
@@ -22,7 +22,7 @@
    - Streaming log panel (agent calls, VRAM swaps from `orchestrator_log`).
 3. **Brand Kit Board** — the deliverable view:
    - Hero logo + wordmark tile.
-   - Hero banner tile.
+   - Banner tile.
    - Social square tile.
    - Product mockup tile.
    - Business card tile (front).

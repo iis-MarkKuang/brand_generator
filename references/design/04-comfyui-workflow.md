@@ -77,7 +77,7 @@ We use **one parameterized workflow** with a conditional PuLID branch:
 | type | size | steps | uses_pulid | notes |
 |---|---|---|---|---|
 | logo | 1024×1024 | 24 | false | high legibility priority |
-| hero_banner | 1344×768 | 24 | false | wide composition |
+| banner | 1344×768 | 24 | false | wide composition |
 | social_square | 1024×1024 | 24 | false | safe-area aware |
 | product_mockup | 1024×1024 | 24 | true (if person) | PuLID for consistency |
 | business_card | 1024×576 | 24 | false | print-safe bleed |

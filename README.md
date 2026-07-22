@@ -1,7 +1,7 @@
 # StyleForge 🎨 — AI Brand Visual-Identity Studio
 
 > A multi-agent, locally-deployed AI studio that turns **one brand brief + one reference
-> image** into a **complete, on-brand visual identity kit** (logo, hero banner, social
+> image** into a **complete, on-brand visual identity kit** (logo, banner, social
 > posts, product mockup, business card + brand guide).
 
 Built for the **DGX Spark Hackathon** (NVIDIA × Stepfun). Analyzed by a **Stepfun

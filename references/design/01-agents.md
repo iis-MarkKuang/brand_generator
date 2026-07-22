@@ -108,7 +108,7 @@ implicitly before/after any generation or reasoning step.
 
 - **Engine:** local Python (no LLM).
 - **Inputs:** approved asset PNGs + `AssetSpec`s + `BrandDna`.
-- **Output:** `brand_kit/` directory: renamed assets (`logo.png`, `hero_banner.png`,
+- **Output:** `brand_kit/` directory: renamed assets (`logo.png`, `banner.png`,
   `social_square.png`, `product_mockup.png`, `business_card.png`), `brand_guide.md`
   (palette swatches in markdown, typography, usage dos/don'ts, asset list), and
   `kit_manifest.json` (the contract the Gallery reads).
@@ -133,7 +133,7 @@ runs/<run_id>/
 ├── run.log                    # every agent call, latency, tokens
 └── brand_kit/
     ├── logo.png
-    ├── hero_banner.png
+    ├── banner.png
     ├── social_square.png
     ├── product_mockup.png
     ├── business_card.png

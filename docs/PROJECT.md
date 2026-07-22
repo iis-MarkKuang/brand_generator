@@ -12,7 +12,7 @@
 **StyleForge** is a multi-agent, locally-deployed AI brand visual-identity studio.
 Given a single brand brief ("a warm, craft-first small-batch coffee roaster; hand-drawn
 serif, earthy palette") and one reference image, it produces a **complete, on-brand
-visual identity kit**: logo, hero banner, social-square, product mockup, business card,
+visual identity kit**: logo, banner, social-square, product mockup, business card,
 and a human-readable brand guide. It runs end-to-end on a single **NVIDIA DGX Spark**
 edge box — no cloud GPU is required for generation, and the only cloud dependency is
 Stepfun's multimodal VLM for the perception stages (analysis and critique).

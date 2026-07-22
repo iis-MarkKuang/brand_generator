@@ -146,7 +146,7 @@ Record the day-by-day development journey of StyleForge for the DGX Spark Hackat
   ruff + mypy (15 files) green.
 - **Live smoke** (`tools/smoke_art_director.py`) used `qwen3.6:35b` as the reasoning
   model (nano still pulling — flaky registry parts, auto-retrying) per the agreed
-  stand-in: produced a coherent 5-asset kit (logo/hero_banner/social_square/
+  stand-in: produced a coherent 5-asset kit (logo/banner/social_square/
   product_mockup/business_card) reusing the Nova Lin palette hex tokens across all
   assets, deterministic seeds, written to `runs/20260713-040820-00855/asset_manifest.json`,
   ~26 s. Will re-run on `nemotron-3-nano:30b` once the pull completes.

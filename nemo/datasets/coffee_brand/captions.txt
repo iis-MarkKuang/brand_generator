@@ -7,10 +7,10 @@
 #   01_logo.png        → minimalist coffee logo, espresso and oat cream, #4A3728 #C65D3B #F2E8D5
 #   02_packaging.png   → kraft coffee packaging, hand-drawn serif, #4A3728 #2D241B #A69B90
 #   03_social.png      → warm coffee social square, craft roaster, #C65D3B #F2E8D5
-#   04_hero.png        → coffee hero banner, espresso drizzle, #4A3728 #C65D3B
+#   04_hero.png        → coffee banner, espresso drizzle, #4A3728 #C65D3B
 #   05_wordmark.png    → hand-drawn serif wordmark, oat cream on espresso, #2D241B #F2E8D5
 minimalist coffee logo, espresso and oat cream, #4A3728 #C65D3B #F2E8D5
 kraft coffee packaging, hand-drawn serif, #4A3728 #2D241B #A69B90
 warm coffee social square, craft roaster, #C65D3B #F2E8D5
-coffee hero banner, espresso drizzle, #4A3728 #C65D3B
+coffee banner, espresso drizzle, #4A3728 #C65D3B
 hand-drawn serif wordmark, oat cream on espresso, #2D241B #F2E8D5

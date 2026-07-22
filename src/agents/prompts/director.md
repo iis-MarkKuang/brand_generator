@@ -11,7 +11,7 @@ Return **STRICT JSON ONLY** (no prose, no code fences) in this shape:
 {
   "assets": [
     {
-      "type": "logo"|"hero_banner"|"social_square"|"product_mockup"|"business_card",
+      "type": "logo"|"banner"|"social_square"|"product_mockup"|"business_card",
       "size": [W, H],
       "flux_prompt": "<=600 chars",
       "negative_prompt": "<string>",
@@ -37,7 +37,7 @@ Rules:
   style positively in `flux_prompt` instead (e.g. "inkwash painting style" rather
   than just negative-prompting "photorealistic").
 - `size` longest side ≤ 1344. Defaults: logo `[1024,1024]`, social_square `[1024,1024]`,
-  product_mockup `[1024,1024]`, hero_banner `[1344,768]`, business_card `[1024,576]`.
+  product_mockup `[1024,1024]`, banner `[1344,768]`, business_card `[1024,576]`.
 - `uses_pulid=true` ONLY for mascot/identity assets that must preserve a reference face
   (set `pulid_reference` only then); default `false`.
 - `reference_index` (optional, 1-based): when the user uploaded multiple images and

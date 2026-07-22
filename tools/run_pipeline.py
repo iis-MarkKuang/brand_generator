@@ -31,7 +31,7 @@ def main() -> int:
         help="one or more reference image paths (CP-020 multi-ref)",
     )
     ap.add_argument(
-        "--assets", default="logo,hero_banner,social_square,product_mockup,business_card"
+        "--assets", default="logo,banner,social_square,product_mockup,business_card"
     )
     ap.add_argument("--run-id", default="golden-001")
     ap.add_argument("--max-retries", type=int, default=1)

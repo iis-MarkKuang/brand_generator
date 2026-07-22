@@ -181,7 +181,7 @@ def _run_iterate(tmp_path, fake_settings, prev_id, new_id, request, fns):
 async def test_iterate_rerenders_all_approved(fake_settings, tmp_path) -> None:
     """Iterate with empty assets list → re-renders all approved assets."""
     runs = tmp_path / "runs"
-    _write_prev_run(runs, "prev-001", approved=["logo", "hero_banner"])
+    _write_prev_run(runs, "prev-001", approved=["logo", "banner"])
     fns = _make_fns(rerender_pass=True)
     from src.common.schemas import IterateRequest
 
@@ -197,11 +197,11 @@ async def test_iterate_rerenders_all_approved(fake_settings, tmp_path) -> None:
     assert kit.run_id == "new-001"
     # both assets re-rendered and approved
     statuses = {a.id: a.status for a in kit.assets}
-    assert statuses == {"logo": "approved", "hero_banner": "approved"}
+    assert statuses == {"logo": "approved", "banner": "approved"}
     assert kit.status == "complete"
     # rewrite was called for each approved asset
     _, _, rewrite, rewrite_calls = fns
-    assert sorted(rewrite_calls) == ["hero_banner", "logo"]
+    assert sorted(rewrite_calls) == ["banner", "logo"]
     # new run dir has the re-rendered kit pngs
     new_kit_png = runs / "new-001" / "brand_kit" / "logo.png"
     assert new_kit_png.exists()
@@ -209,9 +209,9 @@ async def test_iterate_rerenders_all_approved(fake_settings, tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_iterate_copies_unchanged_assets(fake_settings, tmp_path) -> None:
-    """Iterate requesting only `logo` → hero_banner is copied unchanged from prev run."""
+    """Iterate requesting only `logo` → banner is copied unchanged from prev run."""
     runs = tmp_path / "runs"
-    _write_prev_run(runs, "prev-002", approved=["logo", "hero_banner"])
+    _write_prev_run(runs, "prev-002", approved=["logo", "banner"])
     fns = _make_fns(rerender_pass=True)
     from src.common.schemas import IterateRequest
 
@@ -224,13 +224,13 @@ async def test_iterate_copies_unchanged_assets(fake_settings, tmp_path) -> None:
         fns,
     )
     statuses = {a.id: a.status for a in kit.assets}
-    # logo re-rendered (approved), hero_banner copied from prev (approved, score 80)
-    assert statuses == {"logo": "approved", "hero_banner": "approved"}
+    # logo re-rendered (approved), banner copied from prev (approved, score 80)
+    assert statuses == {"logo": "approved", "banner": "approved"}
     by_id = {a.id: a for a in kit.assets}
     assert by_id["logo"].final_score == 85  # re-rendered score
-    assert by_id["hero_banner"].final_score == 80  # preserved from prev
-    # hero_banner png was copied into the new run dir
-    assert (runs / "new-002" / "brand_kit" / "hero_banner.png").exists()
+    assert by_id["banner"].final_score == 80  # preserved from prev
+    # banner png was copied into the new run dir
+    assert (runs / "new-002" / "brand_kit" / "banner.png").exists()
     # rewrite only called for logo (the re-rendered one)
     _, _, rewrite, rewrite_calls = fns
     assert rewrite_calls == ["logo"]
@@ -257,8 +257,8 @@ async def test_iterate_missing_prev_raises(fake_settings, tmp_path) -> None:
 async def test_iterate_partial_when_rerender_fails(fake_settings, tmp_path) -> None:
     """If a re-rendered asset fails critic, the kit is partial but unchanged assets stay approved."""
     runs = tmp_path / "runs"
-    _write_prev_run(runs, "prev-004", approved=["logo", "hero_banner"])
-    # logo fails critic, hero_banner is copied unchanged
+    _write_prev_run(runs, "prev-004", approved=["logo", "banner"])
+    # logo fails critic, banner is copied unchanged
     fns_logo_fail = _make_fns(rerender_pass=False)
     from src.common.schemas import IterateRequest
 
@@ -271,5 +271,5 @@ async def test_iterate_partial_when_rerender_fails(fake_settings, tmp_path) -> N
         fns_logo_fail,
     )
     statuses = {a.id: a.status for a in kit.assets}
-    assert statuses == {"logo": "failed", "hero_banner": "approved"}
+    assert statuses == {"logo": "failed", "banner": "approved"}
     assert kit.status == "partial"

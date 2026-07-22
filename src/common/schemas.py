@@ -32,7 +32,7 @@ FluxPrompt = Annotated[str, StringConstraints(max_length=600)]
 NegativePrompt = Annotated[str, StringConstraints(max_length=300)]
 Rank = Literal["primary", "accent", "neutral"]
 TypographyClass = Literal["serif", "sans", "display", "mono"]
-AssetType = Literal["logo", "hero_banner", "social_square", "product_mockup", "business_card"]
+AssetType = Literal["logo", "banner", "social_square", "product_mockup", "business_card"]
 AssetStatus = Literal["approved", "failed"]
 
 
@@ -125,7 +125,7 @@ class CriticResult(BaseModel):
 
 
 def _default_assets() -> list[AssetType]:
-    return ["logo", "hero_banner", "social_square", "product_mockup", "business_card"]
+    return ["logo", "banner", "social_square", "product_mockup", "business_card"]
 
 
 class RunOptions(BaseModel):

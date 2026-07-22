@@ -6,7 +6,7 @@ brand brief::
     做一个精品咖啡品牌。
     @1 是 logo 灵感参考（极简线条风），
     @2 是我想要的产品包装色调，
-    hero banner 请参考 @2 的氛围，logo 请参考 @1 的风格。
+    banner 请参考 @2 的氛围，logo 请参考 @1 的风格。
 
 This module extracts the roles (the sentence context around each ``@N``) and
 validates that every ``@N`` index is in range ``1..num_images``.

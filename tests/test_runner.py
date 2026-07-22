@@ -177,13 +177,13 @@ def _run(run_input, fake_settings, tmp_path, fns, *, cancel_event=None, ollama=N
 
 @pytest.mark.asyncio
 async def test_runner_partial_kit_2_approved_1_failed(fake_settings, tmp_path) -> None:
-    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "hero_banner"})
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "banner"})
     kit = await _run(
-        _run_input(["logo", "hero_banner", "social_square"]), fake_settings, tmp_path, fns
+        _run_input(["logo", "banner", "social_square"]), fake_settings, tmp_path, fns
     )
     assert isinstance(kit, KitManifest)
     statuses = {a.id: a.status for a in kit.assets}
-    assert statuses == {"logo": "approved", "hero_banner": "approved", "social_square": "failed"}
+    assert statuses == {"logo": "approved", "banner": "approved", "social_square": "failed"}
     assert kit.status == "partial"
     # brand guide has all palette hex + asset list
     guide = (tmp_path / "runs" / "test-run-001" / "brand_kit" / "brand_guide.md").read_text()
@@ -201,7 +201,7 @@ async def test_runner_vlm_cap_no_runaway(fake_settings, tmp_path) -> None:
     fake_settings.max_total_vlm_calls = 3  # analyze(1) + 2 critic calls, then stop
     fns = _make_fns(tmp_path, always_fail=True)
     kit = await _run(
-        _run_input(["logo", "hero_banner", "social_square"], max_retries=1),
+        _run_input(["logo", "banner", "social_square"], max_retries=1),
         fake_settings,
         tmp_path,
         fns,
@@ -214,9 +214,9 @@ async def test_runner_vlm_cap_no_runaway(fake_settings, tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_runner_timeout_partial(fake_settings, tmp_path) -> None:
     fake_settings.run_timeout_s = 1
-    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "hero_banner", "social_square"}, slow=True)
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "banner", "social_square"}, slow=True)
     kit = await _run(
-        _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+        _run_input(["logo", "banner", "social_square"], max_retries=0),
         fake_settings,
         tmp_path,
         fns,
@@ -231,10 +231,10 @@ async def test_runner_timeout_partial(fake_settings, tmp_path) -> None:
 async def test_runner_cancellation(fake_settings, tmp_path) -> None:
     cancel = asyncio.Event()
     fns = _make_fns(
-        tmp_path, critic_pass_ids={"logo", "hero_banner", "social_square"}, cancel_event=cancel
+        tmp_path, critic_pass_ids={"logo", "banner", "social_square"}, cancel_event=cancel
     )
     kit = await _run(
-        _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+        _run_input(["logo", "banner", "social_square"], max_retries=0),
         fake_settings,
         tmp_path,
         fns,
@@ -250,7 +250,7 @@ async def test_runner_cancellation(fake_settings, tmp_path) -> None:
 async def test_runner_kit_manifest_validates(fake_settings, tmp_path) -> None:
     fns = _make_fns(tmp_path, critic_pass_ids={"logo"})
     kit = await _run(
-        _run_input(["logo", "hero_banner"], max_retries=0), fake_settings, tmp_path, fns
+        _run_input(["logo", "banner"], max_retries=0), fake_settings, tmp_path, fns
     )
     assert kit.run_id == "test-run-001"
     mp = tmp_path / "runs" / "test-run-001" / "brand_kit" / "kit_manifest.json"
@@ -263,21 +263,21 @@ async def test_runner_kit_manifest_validates(fake_settings, tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_runner_fail_fast_skips_remaining(fake_settings, tmp_path) -> None:
     """CP-020 fail-fast: if one asset fails, remaining assets are skipped."""
-    # logo passes, hero_banner fails (max_retries=0 so 1 attempt), social_square should be skipped
+    # logo passes, banner fails (max_retries=0 so 1 attempt), social_square should be skipped
     fns = _make_fns(tmp_path, critic_pass_ids={"logo"})
     kit = await _run(
-        _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+        _run_input(["logo", "banner", "social_square"], max_retries=0),
         fake_settings,
         tmp_path,
         fns,
     )
     statuses = {a.id: a.status for a in kit.assets}
     assert statuses["logo"] == "approved"
-    assert statuses["hero_banner"] == "failed"
+    assert statuses["banner"] == "failed"
     # social_square should be skipped (fail-fast), not processed
     assert statuses["social_square"] == "failed"
     assert "fail-fast" in kit.assets[2].error or "skipped" in kit.assets[2].error
-    # Only 2 assets were actually rendered (logo + hero_banner), not social_square
+    # Only 2 assets were actually rendered (logo + banner), not social_square
     assert kit.optimization_stats.total_renders == 2
 
 
@@ -380,7 +380,7 @@ async def test_runner_consistency_check_runs_on_2plus_approved(fake_settings, tm
             asset_ids=[a[0] for a in approved_pairs],
         )
 
-    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "hero_banner", "social_square"})
+    fns = _make_fns(tmp_path, critic_pass_ids={"logo", "banner", "social_square"})
     analyze, plan, generate, critic, rewrite = fns
     fake_settings.runs_root = str(tmp_path / "runs")
     # Patch check_consistency in the runner module
@@ -390,7 +390,7 @@ async def test_runner_consistency_check_runs_on_2plus_approved(fake_settings, tm
     runner_mod.check_consistency = patched_check_consistency  # type: ignore[assignment]
     try:
         kit = await run_pipeline(
-            _run_input(["logo", "hero_banner", "social_square"], max_retries=0),
+            _run_input(["logo", "banner", "social_square"], max_retries=0),
             settings=fake_settings,
             ollama_client=MockOllama(),
             comfyui_client=MockComfyUI(),
@@ -406,7 +406,7 @@ async def test_runner_consistency_check_runs_on_2plus_approved(fake_settings, tm
     assert consistency_called["n"] == 1
     assert kit.consistency is not None
     assert kit.consistency.overall_score == pytest.approx(0.88)
-    assert kit.consistency.asset_ids == ["logo", "hero_banner", "social_square"]
+    assert kit.consistency.asset_ids == ["logo", "banner", "social_square"]
 
 
 @pytest.mark.asyncio
@@ -427,7 +427,7 @@ async def test_runner_consistency_skipped_on_single_approved(fake_settings, tmp_
     runner_mod.check_consistency = patched_check_consistency  # type: ignore[assignment]
     try:
         kit = await run_pipeline(
-            _run_input(["logo", "hero_banner"], max_retries=0),
+            _run_input(["logo", "banner"], max_retries=0),
             settings=fake_settings,
             ollama_client=MockOllama(),
             comfyui_client=MockComfyUI(),

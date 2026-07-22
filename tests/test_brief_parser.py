@@ -19,7 +19,7 @@ class TestParseImageRoles:
         assert parse_image_roles("a coffee brand with no refs", 3) == {}
 
     def test_extracts_roles_from_sentences(self) -> None:
-        brief = "做一个咖啡品牌。@1 是 logo 灵感，@2 是包装色调。hero banner 参考 @2。"
+        brief = "做一个咖啡品牌。@1 是 logo 灵感，@2 是包装色调。banner 参考 @2。"
         roles = parse_image_roles(brief, 2)
         assert 1 in roles
         assert 2 in roles
@@ -27,7 +27,7 @@ class TestParseImageRoles:
         assert "包装色调" in roles[2]
         # @2 appears in two sentences — they should be joined
         assert "包装色调" in roles[2]
-        assert "hero banner 参考 @2" in roles[2]
+        assert "banner 参考 @2" in roles[2]
 
     def test_ignores_out_of_range_tokens(self) -> None:
         brief = "@1 is logo, @5 is out of range"

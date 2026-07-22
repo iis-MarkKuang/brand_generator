@@ -25,7 +25,7 @@ Rules:
   FLUX cannot render legible text — score `legibility` based on the visual clarity
   of the composition and shapes, NOT on whether text/headlines are readable.
   Only score `legibility` low for logo wordmarks that are garbled or illegible;
-  for hero banners, social squares, and other non-text assets, default
+  for banners, social squares, and other non-text assets, default
   `legibility` to 0.8+ unless the composition itself is confusing.
 - `feedback` must be concrete and under 60 words: name the specific hex to drop/add, the
   composition/style fix, or the mood drift. When the asset fails, feedback MUST be non-empty

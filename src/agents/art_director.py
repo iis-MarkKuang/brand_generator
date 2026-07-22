@@ -50,7 +50,7 @@ _DEFAULT_SIZE: dict[str, list[int]] = {
     "logo": [1024, 1024],
     "social_square": [1024, 1024],
     "product_mockup": [1024, 1024],
-    "hero_banner": [1344, 768],
+    "banner": [1344, 768],
     "business_card": [1024, 576],
 }
 

@@ -80,7 +80,7 @@ async def test_consistency_multi_asset_returns_matrix(fake_settings, tmp_path) -
     }
     c = _client(lambda r: httpx.Response(200, json=_completion(json.dumps(payload))), fake_settings)
     matrix = await check_consistency(
-        [("logo", png1), ("hero_banner", png2)],
+        [("logo", png1), ("banner", png2)],
         DNA,
         run_dir=run,
         client=c,
@@ -88,7 +88,7 @@ async def test_consistency_multi_asset_returns_matrix(fake_settings, tmp_path) -
     assert matrix.overall_score == pytest.approx(0.82)
     assert len(matrix.dimensions) == 4
     assert matrix.dimensions[0].dimension == "palette"
-    assert matrix.asset_ids == ["logo", "hero_banner"]
+    assert matrix.asset_ids == ["logo", "banner"]
     assert (run.path / "consistency_matrix.json").exists()
     await c.aclose()
 
@@ -103,7 +103,7 @@ async def test_consistency_never_crashes_on_bad_json(fake_settings, tmp_path) ->
 
     c = _client(lambda r: httpx.Response(200, json=_completion("not json!!")), fake_settings)
     matrix = await check_consistency(
-        [("logo", png1), ("hero_banner", png2)],
+        [("logo", png1), ("banner", png2)],
         DNA,
         run_dir=run,
         client=c,

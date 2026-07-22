@@ -15,7 +15,7 @@ no venv and no third-party packages.
 
 Usage:
   styleforge_helper.py "<brief>" [assets]
-  styleforge_helper.py "warm craft coffee roaster" "logo,social_square,hero_banner"
+  styleforge_helper.py "warm craft coffee roaster" "logo,social_square,banner"
 
 Environment:
   OPENCLAW_HOME     — OpenClaw home (media/workspace boundary)
@@ -47,7 +47,7 @@ PUBLISH_ROOT = (
     else Path("/tmp/styleforge_outputs")
 )
 INBOUND_DIR = (OPENCLAW_HOME / ".openclaw" / "media" / "inbound") if OPENCLAW_HOME else None
-DEFAULT_ASSETS = "logo,social_square,hero_banner"
+DEFAULT_ASSETS = "logo,social_square,banner"
 POLL_INTERVAL_S = 4
 POLL_TIMEOUT_S = 480  # 8 min ceiling for a chat turn
 
@@ -372,7 +372,7 @@ def deliver_to_telegram(approved: list, run_id: str, palette: list, brand_guide:
     if not TG_TOKEN or not TG_CHAT:
         log("telegram delivery skipped (no STYLEFORGE_TG_TOKEN / chat id)")
         return
-    labels = {"logo": "Logo", "social_square": "Social Square", "hero_banner": "Hero Banner"}
+    labels = {"logo": "Logo", "social_square": "Social Square", "banner": "Banner"}
 
     # Send each asset photo with a clean caption
     sent = 0

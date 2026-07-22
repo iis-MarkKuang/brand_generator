@@ -106,7 +106,7 @@ def test_size_vram_cap() -> None:
     with pytest.raises(ValidationError):
         AssetSpec(
             id="hero",
-            type="hero_banner",
+            type="banner",
             size=[2048, 1024],
             flux_prompt="ok",
             seed=1,

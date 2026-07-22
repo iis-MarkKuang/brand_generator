@@ -47,7 +47,7 @@ DNA = BrandDna.model_validate(
     }
 )
 
-TYPES = ["logo", "hero_banner", "social_square", "product_mockup", "business_card"]
+TYPES = ["logo", "banner", "social_square", "product_mockup", "business_card"]
 
 
 async def main() -> int:

@@ -6,7 +6,7 @@ import type { AssetType } from "../types";
 
 const ALL_ASSETS: { id: AssetType; label: string }[] = [
   { id: "logo", label: "Logo" },
-  { id: "hero_banner", label: "Hero Banner" },
+  { id: "banner", label: "Banner" },
   { id: "social_square", label: "Social Square" },
   { id: "product_mockup", label: "Product Mockup" },
   { id: "business_card", label: "Business Card" },
@@ -20,7 +20,7 @@ export default function NewKitForm() {
   const [brandName, setBrandName] = useState("Ember & Oat");
   const [files, setFiles] = useState<File[]>([]);
   const [assets, setAssets] = useState<Set<AssetType>>(
-    new Set<AssetType>(["logo", "social_square", "hero_banner"]),
+    new Set<AssetType>(["logo", "social_square", "banner"]),
   );
   const [maxRetries, setMaxRetries] = useState(1);
   const [error, setError] = useState<string | null>(null);

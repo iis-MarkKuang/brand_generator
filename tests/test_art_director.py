@@ -39,7 +39,7 @@ DNA_DICT: dict[str, object] = {
     "personality": "Warm, unhurried, craft-first small-batch roaster.",
 }
 
-ASSET_TYPES = ["logo", "hero_banner", "social_square", "product_mockup", "business_card"]
+ASSET_TYPES = ["logo", "banner", "social_square", "product_mockup", "business_card"]
 
 
 def _asset_dicts() -> list[dict[str, object]]:
@@ -53,9 +53,9 @@ def _asset_dicts() -> list[dict[str, object]]:
             "uses_pulid": False,
         },
         {
-            "type": "hero_banner",
+            "type": "banner",
             "size": [1344, 768],
-            "flux_prompt": "coffee roaster hero banner, steam, kraft paper, #3B2417 #C26B3C palette, warm studio light",
+            "flux_prompt": "coffee roaster banner, steam, kraft paper, #3B2417 #C26B3C palette, warm studio light",
             "negative_prompt": "neon, corporate blue",
             "composition": "wide hero",
             "uses_pulid": False,

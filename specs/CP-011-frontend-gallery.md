@@ -17,7 +17,7 @@ final brand kit as a presentation-quality board. This is the hero of the demo vi
 - Live View: Brand DNA card (palette swatches, mood chips, typography), asset lanes
   (`planned → rendering → critiquing → approved/failed` with latest thumbnail), streaming
   log panel (agent calls + VRAM swaps from SSE).
-- Brand Kit Board: logo, hero banner, social square, product mockup, business card tiles;
+- Brand Kit Board: logo, banner, social square, product mockup, business card tiles;
   palette strip; typography spec; `brand_guide.md` preview; Download kit.zip.
 - History: lists `runs/`; click to reopen a kit.
 - SSE consumer on `/api/runs/{id}/events` with 2s polling fallback.

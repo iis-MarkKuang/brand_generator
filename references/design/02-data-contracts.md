@@ -14,7 +14,7 @@
   "reference_images": ["runs/<run_id>/input/reference_1.jpg"],
   "image_roles": {},
   "options": {
-    "assets": ["logo", "hero_banner", "social_square", "product_mockup", "business_card"],
+    "assets": ["logo", "banner", "social_square", "product_mockup", "business_card"],
     "max_retries_per_asset": 2
   }
 }
@@ -107,7 +107,7 @@
   "brand_guide": "brand_kit/brand_guide.md",
   "assets": [
     {"id": "logo",          "type": "logo",           "path": "brand_kit/logo.png",          "status": "approved", "final_score": 88},
-    {"id": "hero_banner",   "type": "hero_banner",    "path": "brand_kit/hero_banner.png",   "status": "approved", "final_score": 84},
+    {"id": "banner",   "type": "banner",    "path": "brand_kit/banner.png",   "status": "approved", "final_score": 84},
     {"id": "product_mockup","type": "product_mockup", "path": "brand_kit/product_mockup.png","status": "approved", "final_score": 90},
     {"id": "social_square", "type": "social_square",  "path": "brand_kit/social_square.png", "status": "failed",   "final_score": null,  "error": "max retries exhausted"}
   ],

@@ -32,7 +32,7 @@ _log = structlog.get_logger(__name__)
 
 _SYSTEM_PROMPT = (
     "You are a brand consistency auditor. You will be shown multiple brand "
-    "assets (logo, hero banner, social square, etc.) that were generated for "
+    "assets (logo, banner, social square, etc.) that were generated for "
     "the same brand. Compare them against each other and the brand DNA for "
     "cross-asset consistency.\n\n"
     "Score each dimension on a 0.0–1.0 scale:\n"
