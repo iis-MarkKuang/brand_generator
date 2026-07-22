@@ -177,9 +177,17 @@ def create_app(
 
         async def _runner() -> Any:
             try:
-                kit = await pipeline(run_input, settings=s)
+                kit = await asyncio.wait_for(
+                    pipeline(run_input, settings=s),
+                    timeout=s.run_timeout_s,
+                )
                 reg.results[run_id] = kit
                 return kit
+            except TimeoutError:
+                _log.warning("api.run.timeout", run_id=run_id, timeout_s=s.run_timeout_s)
+                reg.results[run_id] = TimeoutError(
+                    f"run {run_id} exceeded {s.run_timeout_s}s wall-clock timeout"
+                )
             except Exception as exc:  # noqa: BLE001 — never let the task die silently
                 _log.exception("api.run.failed", run_id=run_id)
                 reg.results[run_id] = exc
@@ -212,9 +220,17 @@ def create_app(
 
         async def _iter_runner() -> Any:
             try:
-                kit = await iter_fn(prev_run_id, body, new_run_id=new_id, settings=s)
+                kit = await asyncio.wait_for(
+                    iter_fn(prev_run_id, body, new_run_id=new_id, settings=s),
+                    timeout=s.run_timeout_s,
+                )
                 reg.results[new_id] = kit
                 return kit
+            except TimeoutError:
+                _log.warning("api.iterate.timeout", new_id=new_id, timeout_s=s.run_timeout_s)
+                reg.results[new_id] = TimeoutError(
+                    f"iterate {new_id} exceeded {s.run_timeout_s}s wall-clock timeout"
+                )
             except Exception as exc:  # noqa: BLE001
                 _log.exception("api.iterate.failed", new_id=new_id, prev=prev_run_id)
                 reg.results[new_id] = exc

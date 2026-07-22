@@ -49,7 +49,7 @@ PUBLISH_ROOT = (
 INBOUND_DIR = (OPENCLAW_HOME / ".openclaw" / "media" / "inbound") if OPENCLAW_HOME else None
 DEFAULT_ASSETS = "logo,social_square,banner"
 POLL_INTERVAL_S = 4
-POLL_TIMEOUT_S = 480  # 8 min ceiling for a chat turn
+POLL_TIMEOUT_S = 600  # 10 min — matches RUN_TIMEOUT_S in the pipeline config
 
 
 def log(msg: str) -> None:
